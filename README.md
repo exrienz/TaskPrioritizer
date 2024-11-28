@@ -51,7 +51,7 @@ Task Score = Priority Score + Urgency Score + Effort Score + Mandays Score
 1. Clone the Repository:
 
    ```bash
-   git clone git@github.com:exrienz/TaskPrioritizer.git
+   git clone https://github.com/exrienz/TaskPrioritizer.git
    cd TaskPrioritizer
    ```
 
@@ -64,7 +64,7 @@ Task Score = Priority Score + Urgency Score + Effort Score + Mandays Score
 3. Run the Docker Container:
 
    ```bash
-   docker run -d -p 8080:80 --name task-prioritizer-container task-prioritizer
+   docker run -d -p 8080:80 --restart=always --name task-prioritizer-container task-prioritizer
    ```
 
 4. Access the Application:
