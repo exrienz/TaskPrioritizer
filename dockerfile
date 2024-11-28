@@ -1,5 +1,3 @@
-# Dockerfile for Token-Based Task Management System
-
 # Base Image
 FROM php:8.1-apache
 
