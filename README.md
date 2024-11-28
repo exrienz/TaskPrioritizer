@@ -75,7 +75,7 @@ Task Score = Priority Score + Urgency Score + Effort Score + Mandays Score
 1. Clone the Repository:
 
    ```bash
-   git clone git@github.com:exrienz/TaskPrioritizer.git
+   git clone https://github.com/exrienz/TaskPrioritizer.git
    cd TaskPrioritizer
    ```
 
