@@ -115,14 +115,6 @@ TaskPrioritizer/
 └── assets/            # (Optional) Add CSS/JS files here if needed
 ```
 
-#### Screenshots
-
-**Login Page**
-![Login Page](https://via.placeholder.com/150)
-
-**Task Management Area**
-![Task Management Area](https://via.placeholder.com/150)
-
 #### Technologies Used
 
 - Backend: PHP
