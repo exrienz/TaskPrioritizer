@@ -2,6 +2,8 @@
 
 A lightweight Task Prioritizer built with PHP and SQLite, designed to help you manage tasks dynamically. This system calculates task scores based on priority, effort, mandays, and due dates, and sorts tasks by their scores in real-time.
 
+Demo: https://todo.code-x.my/
+
 #### Features
 
 - **Token-Based Authentication**: Generate unique tokens to log in and manage tasks securely.
