@@ -4,7 +4,7 @@ ini_set('session.cookie_secure', 1);
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
 
-// Ensure session_start is called before any output
+// Ensure session_start is called before any output.
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
