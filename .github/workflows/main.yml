@@ -1,0 +1,108 @@
+name: Task Prioritizer CI/CD Pipeline
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [created]
+
+jobs:
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: PHP Security Check
+        uses: StephaneBour/actions-php-security-checker@1.1
+        
+      - name: SAST Scan
+        uses: github/codeql-action/analyze@v2
+        with:
+          languages: php
+
+  code-quality:
+    name: Code Quality
+    needs: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: PHP Syntax Check
+        run: find . -name "*.php" -exec php -l {} \;
+        
+      - name: PHP Code Sniffer
+        uses: php-actions/phpcs@v1
+        with:
+          standard: PSR12
+
+  build:
+    name: Build and Test
+    needs: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build Docker Image
+        run: |
+          docker build -t task-prioritizer:${{ github.sha }} .
+          docker save task-prioritizer:${{ github.sha }} > image.tar
+          
+      - name: Cache Docker Image
+        uses: actions/cache@v3
+        with:
+          path: image.tar
+          key: docker-${{ github.sha }}
+
+  test:
+    name: Integration Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Load Docker Image
+        uses: actions/cache@v3
+        with:
+          path: image.tar
+          key: docker-${{ github.sha }}
+      
+      - name: Run Tests
+        run: |
+          docker load < image.tar
+          docker run -d -p 8080:80 task-prioritizer:${{ github.sha }}
+          sleep 10
+          curl -f http://localhost:8080 || exit 1
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to Staging Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            docker pull task-prioritizer:${{ github.sha }}
+            docker-compose up -d
+
+  deploy-production:
+    name: Deploy to Production
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Deploy to Production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            docker pull task-prioritizer:${{ github.sha }}
+            docker-compose up -d
