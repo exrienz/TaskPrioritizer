@@ -57,73 +57,86 @@ jobs:
           wget https://squizlabs.github.io/PHP_CodeSniffer/phpcs.phar
           php phpcs.phar --standard=PSR12 ./*.php
 
-  build:
-    name: Build and Test
-    needs: code-quality
+  build-and-publish:
+    name: Build and Publish Docker Image
+    needs: [security-scan, code-quality]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Build Docker Image
-        run: |
-          docker build -t task-prioritizer:${{ github.sha }} .
-          docker save task-prioritizer:${{ github.sha }} > image.tar
-          
-      - name: Cache Docker Image
-        uses: actions/cache@v3
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Login to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
         with:
-          path: image.tar
-          key: docker-${{ github.sha }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Generate Docker metadata
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer
+          tags: |
+            type=sha,format=short
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Build and push Docker image
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:buildcache,mode=max
 
   test:
     name: Integration Tests
-    needs: build
+    needs: build-and-publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Load Docker Image
-        uses: actions/cache@v3
-        with:
-          path: image.tar
-          key: docker-${{ github.sha }}
-      
-      - name: Run Container and Test
+      - name: Pull and test image
         run: |
-          docker load < image.tar
-          docker run -d -p 8080:80 --name test-container task-prioritizer:${{ github.sha }}
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:sha-${{ github.sha }}
+          docker run -d -p 8080:80 --name test-container ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:sha-${{ github.sha }}
           sleep 10
-          
-          # Basic health check
           curl -f http://localhost:8080 || exit 1
-          
-          # Additional functional tests
           docker logs test-container
           docker inspect test-container --format='{{.State.Status}}'
 
   deploy-staging:
     name: Deploy to Staging
     needs: test
-    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     environment: staging
+    runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Staging Server
+      - name: Deploy to Staging
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker pull task-prioritizer:${{ github.sha }}
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:sha-${{ github.sha }}
             docker-compose -f docker-compose.staging.yml up -d
 
   deploy-production:
     name: Deploy to Production
     needs: deploy-staging
-    runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment: production
+    runs-on: ubuntu-latest
     steps:
       - name: Deploy to Production
         uses: appleboy/ssh-action@master
@@ -132,5 +145,5 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker pull task-prioritizer:${{ github.sha }}
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:${{ github.ref_name }}
             docker-compose -f docker-compose.prod.yml up -d
