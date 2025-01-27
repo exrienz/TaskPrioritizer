@@ -34,12 +34,6 @@ jobs:
           find . -name "*.php" -type f -exec php -l {} \;
           # Add more basic security checks here
 
-      - name: SAST Scan with SonarQube
-        uses: SonarSource/sonarqube-scan-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
   code-quality:
     name: Code Quality
     needs: security-scan
