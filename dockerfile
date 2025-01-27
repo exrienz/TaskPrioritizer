@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 RUN a2enmod rewrite
 
 # Copy application files to the container
-COPY . /var/www/html
+COPY src/ /var/www/html
 
 # Move SQLite database outside the web root
 RUN mkdir /var/www/db && \
