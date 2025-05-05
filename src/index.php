@@ -145,33 +145,38 @@ if ($_SESSION['loggedin'] ?? false) {
     <button type="submit" name="create_task" class="btn btn-primary w-100">Create Task</button>
 </form>
 <h3>Your Tasks</h3>
+<div class="row">
 <?php foreach ($tasks as $task): ?>
-<div class="card">
-    <div class="card-body">
-        <h5 class="card-title mb-1"><?= htmlspecialchars($task['task_name']) ?>
-            <?php if ($task['in_progress']): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
-        </h5>
-        <p class="card-text mb-1"><strong>Priority:</strong> <?= htmlspecialchars($task['priority']) ?>
-            | <strong>Effort:</strong> <?= htmlspecialchars($task['effort']) ?>
-            | <strong>Mandays:</strong> <?= $task['mandays'] ?>
-            | <strong>Due:</strong> <?= $task['due_date'] ?>
-        </p>
-        <p class="card-text"><strong>Score:</strong> <?= calculateTaskScore($task) ?></p>
-        <form method="POST" class="d-inline">
-            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-            <button type="submit" name="delete_task" class="btn btn-sm btn-outline-danger">Delete</button>
-        </form>
-        <?php if (!$task['in_progress']): ?>
-        <form method="POST" class="d-inline">
-            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-            <input type="hidden" name="mark_progress" value="1">
-            <input type="checkbox" onchange="this.form.submit()">
-            Mark as In Progress
-        </form>
-        <?php endif; ?>
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title mb-1"><?= htmlspecialchars($task['task_name']) ?>
+                    <?php if ($task['in_progress']): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
+                </h5>
+                <p class="card-text mb-1">
+                    <strong>Priority:</strong> <?= htmlspecialchars($task['priority']) ?><br>
+                    <strong>Effort:</strong> <?= htmlspecialchars($task['effort']) ?><br>
+                    <strong>Mandays:</strong> <?= $task['mandays'] ?><br>
+                    <strong>Due:</strong> <?= $task['due_date'] ?><br>
+                    <strong>Score:</strong> <?= calculateTaskScore($task) ?>
+                </p>
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+                    <button type="submit" name="delete_task" class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+                <?php if (!$task['in_progress']): ?>
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+                    <input type="hidden" name="mark_progress" value="1">
+                    <input type="checkbox" onchange="this.form.submit()">
+                    Mark as In Progress
+                </form>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
-</div>
 <?php endforeach; ?>
+</div>
 <?php endif; ?>
 </body>
 </html>
