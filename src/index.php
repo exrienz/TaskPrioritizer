@@ -1,12 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
-    <title>Task Management System</title>
-</head>
-<body class="container">
 <?php
+// Ensure session settings and start are called before any output
 ini_set('session.cookie_secure', 1);
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
@@ -91,8 +84,13 @@ if ($_SESSION['loggedin'] ?? false) {
     while ($row = $results->fetchArray(SQLITE3_ASSOC)) $tasks[] = $row;
     usort($tasks, fn($a, $b) => calculateTaskScore($b) <=> calculateTaskScore($a));
 }
-?>
-
+?><!DOCTYPE html><html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <title>Task Management System</title>
+</head>
+<body class="container">
 <?php if (!($_SESSION['loggedin'] ?? false)): ?>
 <h2>Generate Token</h2>
 <form method="POST">
@@ -109,35 +107,32 @@ if ($_SESSION['loggedin'] ?? false) {
 <h2>Create Task</h2>
 <form method="POST">
     <label>Task Name:</label>
-    <input type="text" name="task_name" class="form-control" required>
+    <input type="text" name="task_name" class="form-control" required><label>Priority:</label>
+<select name="priority" class="form-control">
+    <option>Critical</option>
+    <option>High</option>
+    <option>Medium</option>
+    <option>Low</option>
+    <option>Optional</option>
+</select>
 
-    <label>Priority:</label>
-    <select name="priority" class="form-control">
-        <option>Critical</option>
-        <option>High</option>
-        <option>Medium</option>
-        <option>Low</option>
-        <option>Optional</option>
-    </select>
+<label>Effort:</label>
+<select name="effort" class="form-control">
+    <option>Very High</option>
+    <option>High</option>
+    <option>Medium</option>
+    <option>Low</option>
+</select>
 
-    <label>Effort:</label>
-    <select name="effort" class="form-control">
-        <option>Very High</option>
-        <option>High</option>
-        <option>Medium</option>
-        <option>Low</option>
-    </select>
+<label>Mandays:</label>
+<input type="number" name="mandays" class="form-control" required>
 
-    <label>Mandays:</label>
-    <input type="number" name="mandays" class="form-control" required>
+<label>Due Date:</label>
+<input type="date" name="due_date" class="form-control" required>
 
-    <label>Due Date:</label>
-    <input type="date" name="due_date" class="form-control" required>
+<button type="submit" name="create_task" class="btn btn-primary mt-2">Create Task</button>
 
-    <button type="submit" name="create_task" class="btn btn-primary mt-2">Create Task</button>
-</form>
-
-<h3 class="mt-4">All Tasks</h3>
+</form><h3 class="mt-4">All Tasks</h3>
 <table class="table table-bordered">
 <tr><th>Name</th><th>Priority</th><th>Effort</th><th>Mandays</th><th>Due Date</th><th>Score</th><th>Actions</th></tr>
 <?php foreach ($tasks as $task): ?>
