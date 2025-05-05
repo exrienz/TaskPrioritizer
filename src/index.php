@@ -148,10 +148,10 @@ if ($_SESSION['loggedin'] ?? false) {
 <form method="POST" class="mb-4">
     <input type="text" name="task_name" class="form-control mb-2" placeholder="Task Name" required>
     <select name="priority" class="form-select mb-2">
-        <option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Optional</option>
+        <option>Choose Priority</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Optional</option>
     </select>
     <select name="effort" class="form-select mb-2">
-        <option>Very High</option><option>High</option><option>Medium</option><option>Low</option>
+        <option>Choose Effort</option><option>Very High</option><option>High</option><option>Medium</option><option>Low</option>
     </select>
     <input type="number" name="mandays" class="form-control mb-2" placeholder="Mandays" required>
     <input type="date" name="due_date" class="form-control mb-2" required>
