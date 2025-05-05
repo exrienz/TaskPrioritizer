@@ -102,20 +102,34 @@ if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true) {
     }
 }
 
-// Calculate Task Score
-function calculateTaskScore($task) {
-    $priorityScore = ['Critical' => 3, 'High' => 2, 'Medium' => 1, 'Low' => 0][$task['priority']];
-    $daysRemaining = (strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400;
-    $urgencyScore = max(0, 10 - $daysRemaining);
-    $effortScore = ['Low' => 2, 'Medium' => 1, 'High' => 0][$task['effort']];
-    $mandaysScore = max(0, 10 - $task['mandays']);
-    return $priorityScore + $urgencyScore + $effortScore + $mandaysScore;
+// Calculate Task Score using Improved Prioritization Formula function calculateTaskScore($task) { // Numeric values for criticality and effort $criticalityMap = ['Optional' => 1, 'Low' => 2, 'Medium' => 3, 'High' => 4, 'Critical' => 5]; $effortMap = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
+
+$criticality = $criticalityMap[$task['priority']] ?? 1;
+$effort = $effortMap[$task['effort']] ?? 2;
+$mandays = max(1, (int)$task['mandays']);
+
+$daysLeft = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
+
+// EffortFactor (lower effort tasks prioritized)
+$effortFactor = 1 / $effort;
+
+// Weights
+$weightCriticalityEffort = 50;
+$weightMandays = -5;
+$weightDaysLeft = 40;
+
+// Priority Score Calculation
+$priorityScore = ($criticality * $effortFactor * $weightCriticalityEffort)
+    + ($mandays * $weightMandays)
+    + ($weightDaysLeft / ($daysLeft + 1));
+
+return round($priorityScore, 2);
+
 }
 
-// Sort tasks by score in descending order
-usort($tasks, function ($a, $b) {
-    return calculateTaskScore($b) <=> calculateTaskScore($a);
-});
+// Sort tasks by the improved priority formula in descending order usort($tasks, function ($a, $b) { return calculateTaskScore($b) <=> calculateTaskScore($a); });
+
+
 ?>
 
 <?php if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true): ?>
