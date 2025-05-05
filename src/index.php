@@ -10,6 +10,7 @@ if (session_status() == PHP_SESSION_NONE) {
 
 $db = new SQLite3('/var/www/db/task_management.db');
 
+// Create tables if not exists
 $db->exec("CREATE TABLE IF NOT EXISTS tokens (token TEXT PRIMARY KEY);");
 $db->exec("CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,9 +20,21 @@ $db->exec("CREATE TABLE IF NOT EXISTS tasks (
     effort TEXT NOT NULL,
     mandays INTEGER NOT NULL,
     due_date TEXT NOT NULL,
-    in_progress INTEGER DEFAULT 0,
     FOREIGN KEY (token) REFERENCES tokens(token)
 );");
+
+// Ensure in_progress column exists
+$columns = $db->query("PRAGMA table_info(tasks);");
+$columnExists = false;
+while ($col = $columns->fetchArray(SQLITE3_ASSOC)) {
+    if ($col['name'] === 'in_progress') {
+        $columnExists = true;
+        break;
+    }
+}
+if (!$columnExists) {
+    $db->exec("ALTER TABLE tasks ADD COLUMN in_progress INTEGER DEFAULT 0;");
+}
 
 if (isset($_POST['generate_token'])) {
     $token = bin2hex(random_bytes(16));
@@ -46,7 +59,7 @@ if (isset($_POST['login'])) {
 }
 
 if (isset($_POST['create_task']) && $_SESSION['loggedin'] === true) {
-    $stmt = $db->prepare("INSERT INTO tasks (token, task_name, priority, effort, mandays, due_date) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt = $db->prepare("INSERT INTO tasks (token, task_name, priority, effort, mandays, due_date, in_progress) VALUES (?, ?, ?, ?, ?, ?, 0)");
     $stmt->bindValue(1, $_SESSION['token']);
     $stmt->bindValue(2, $_POST['task_name']);
     $stmt->bindValue(3, $_POST['priority']);
@@ -151,7 +164,7 @@ if ($_SESSION['loggedin'] ?? false) {
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= htmlspecialchars($task['task_name']) ?>
-                    <?php if ($task['in_progress']): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
+                    <?php if (!empty($task['in_progress'])): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
                 </h5>
                 <p class="card-text mb-1">
                     <strong>Priority:</strong> <?= htmlspecialchars($task['priority']) ?><br>
@@ -164,7 +177,7 @@ if ($_SESSION['loggedin'] ?? false) {
                     <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
                     <button type="submit" name="delete_task" class="btn btn-sm btn-outline-danger">Delete</button>
                 </form>
-                <?php if (!$task['in_progress']): ?>
+                <?php if (empty($task['in_progress'])): ?>
                 <form method="POST" class="d-inline">
                     <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
                     <input type="hidden" name="mark_progress" value="1">
