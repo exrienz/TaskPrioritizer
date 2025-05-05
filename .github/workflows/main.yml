@@ -1,126 +1,36 @@
-name: Task Prioritizer CI/CD Pipeline
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  release:
-    types: [created]
+name: Task Prioritizer DockerHub Push
 
-jobs:
-  security-scan:
-    name: Security Scanning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      # Only run composer security check if composer.lock exists
-      - name: Check if composer.lock exists
-        id: check_composer
-        run: |
-          if [ -f "composer.lock" ]; then
-            echo "composer_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "composer_exists=false" >> $GITHUB_OUTPUT
-          fi
+on: push: branches: [ main ]
 
-      - name: PHP Security Check
-        if: steps.check_composer.outputs.composer_exists == 'true'
-        uses: StephaneBour/actions-php-security-checker@1.1
-        
-      # Alternative security scanning for non-Composer projects
-      - name: Basic PHP File Security Scan
-        run: |
-          find . -name "*.php" -type f -exec php -l {} \;
-          # Add more basic security checks here
+jobs: build-and-publish: name: Build and Publish Docker Image runs-on: self-hosted steps: - uses: actions/checkout@v3
 
-    build-and-publish:
-    name: Build and Publish Docker Image
-    needs: [security-scan, code-quality]
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v3
+- name: Set up Docker Buildx
+    uses: docker/setup-buildx-action@v2
 
-      # Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+  - name: Login to Docker Hub
+    uses: docker/login-action@v2
+    with:
+      username: ${{ secrets.DOCKERHUB_USERNAME }}
+      password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Login to Docker Hub
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+  - name: Docker metadata
+    id: meta
+    uses: docker/metadata-action@v4
+    with:
+      images: ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer
+      tags: |
+        type=sha,format=short
+        type=ref,event=branch
+        type=ref,event=tag
+        type=semver,pattern={{version}}
+        type=semver,pattern={{major}}.{{minor}}
+        type=raw,value=latest,enable={{is_default_branch}}
 
-      # Generate Docker metadata
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v4
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer
-          tags: |
-            type=sha,format=short
-            type=ref,event=branch
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
+  - name: Build and push
+    uses: docker/build-push-action@v4
+    with:
+      context: .
+      push: true
+      tags: ${{ steps.meta.outputs.tags }}
+      labels: ${{ steps.meta.outputs.labels }}
 
-      # Build and push Docker image
-      - name: Build and push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:buildcache,mode=max
-
-  test:
-    name: Integration Tests
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    steps:
-      - name: Pull and test image
-        run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:sha-${{ github.sha }}
-          docker run -d -p 8080:80 --name test-container ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:sha-${{ github.sha }}
-          sleep 10
-          curl -f http://localhost:8080 || exit 1
-          docker logs test-container
-          docker inspect test-container --format='{{.State.Status}}'
-
-  deploy-staging:
-    name: Deploy to Staging
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    environment: staging
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Staging
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:sha-${{ github.sha }}
-            docker-compose -f docker-compose.staging.yml up -d
-
-  deploy-production:
-    name: Deploy to Production
-    needs: deploy-staging
-    if: startsWith(github.ref, 'refs/tags/v')
-    environment: production
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Production
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/task-prioritizer:${{ github.ref_name }}
-            docker-compose -f docker-compose.prod.yml up -d
