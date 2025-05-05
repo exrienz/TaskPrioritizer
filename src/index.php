@@ -19,11 +19,10 @@ $db->exec("CREATE TABLE IF NOT EXISTS tasks (
     effort TEXT NOT NULL,
     mandays INTEGER NOT NULL,
     due_date TEXT NOT NULL,
-    progress BOOLEAN NOT NULL DEFAULT 0,
+    in_progress INTEGER DEFAULT 0,
     FOREIGN KEY (token) REFERENCES tokens(token)
 );");
 
-// Token Generation
 if (isset($_POST['generate_token'])) {
     $token = bin2hex(random_bytes(16));
     $_SESSION['token'] = $token;
@@ -33,7 +32,6 @@ if (isset($_POST['generate_token'])) {
     echo "<p>Your unique token: <strong>$token</strong></p>";
 }
 
-// Login Handling
 if (isset($_POST['login'])) {
     $token = $_POST['token'];
     $stmt = $db->prepare("SELECT token FROM tokens WHERE token = ?");
@@ -47,7 +45,6 @@ if (isset($_POST['login'])) {
     }
 }
 
-// Task Handling
 if (isset($_POST['create_task']) && $_SESSION['loggedin'] === true) {
     $stmt = $db->prepare("INSERT INTO tasks (token, task_name, priority, effort, mandays, due_date) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->bindValue(1, $_SESSION['token']);
@@ -59,16 +56,6 @@ if (isset($_POST['create_task']) && $_SESSION['loggedin'] === true) {
     $stmt->execute();
 }
 
-// Mark Task as In Progress
-if (isset($_POST['mark_progress']) && $_SESSION['loggedin'] === true) {
-    $stmt = $db->prepare("UPDATE tasks SET progress = ? WHERE id = ? AND token = ?");
-    $stmt->bindValue(1, 1); // Mark as in progress
-    $stmt->bindValue(2, $_POST['task_id']);
-    $stmt->bindValue(3, $_SESSION['token']);
-    $stmt->execute();
-}
-
-// Task Deletion
 if (isset($_POST['delete_task']) && $_SESSION['loggedin'] === true) {
     $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND token = ?");
     $stmt->bindValue(1, $_POST['task_id']);
@@ -76,10 +63,16 @@ if (isset($_POST['delete_task']) && $_SESSION['loggedin'] === true) {
     $stmt->execute();
 }
 
-// Logout
+if (isset($_POST['mark_progress']) && $_SESSION['loggedin'] === true) {
+    $stmt = $db->prepare("UPDATE tasks SET in_progress = 1 WHERE id = ? AND token = ?");
+    $stmt->bindValue(1, $_POST['task_id']);
+    $stmt->bindValue(2, $_SESSION['token']);
+    $stmt->execute();
+}
+
 if (isset($_POST['logout'])) {
     session_destroy();
-    header("Location: index.php"); // Refresh page to log out
+    header("Location: index.php");
     exit;
 }
 
@@ -111,114 +104,74 @@ if ($_SESSION['loggedin'] ?? false) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <title>Task Management System</title>
     <style>
-        body {
-            padding-top: 20px;
-        }
-        .task-table td {
-            vertical-align: middle;
-        }
+        body { padding-top: 2rem; background-color: #f9f9f9; }
+        .card { margin-bottom: 1rem; }
+        .progress-badge { background-color: #ffc107; color: #000; font-size: 0.8em; padding: 0.2em 0.6em; border-radius: 5px; }
     </style>
 </head>
 <body class="container">
 <?php if (!($_SESSION['loggedin'] ?? false)): ?>
-    <h2>Generate Token</h2>
-    <form method="POST">
-        <button type="submit" name="generate_token" class="btn btn-primary btn-block">Generate Token</button>
-    </form>
-    <hr>
-    <h2>Login</h2>
-    <form method="POST">
-        <div class="form-group">
-            <label for="token">Enter Your Token:</label>
-            <input type="text" class="form-control" name="token" id="token" required>
-        </div>
-        <button type="submit" name="login" class="btn btn-primary btn-block">Login</button>
-    </form>
+<h2 class="mb-4">Generate Token</h2>
+<form method="POST" class="mb-4">
+    <button type="submit" name="generate_token" class="btn btn-primary">Generate Token</button>
+</form>
+<h2>Login</h2>
+<form method="POST">
+    <label for="token">Enter Your Token:</label>
+    <input type="text" class="form-control" name="token" id="token" required>
+    <button type="submit" name="login" class="btn btn-success mt-2">Login</button>
+</form>
 <?php else: ?>
-    <h2>Member Area</h2>
+<div class="d-flex justify-content-between align-items-center">
+    <h2>Create Task</h2>
     <form method="POST">
-        <button type="submit" name="logout" class="btn btn-danger btn-block">Logout</button>
+        <button name="logout" class="btn btn-danger">Logout</button>
     </form>
-    <hr>
-    <h3>Create Task</h3>
-    <form method="POST">
-        <div class="form-group">
-            <label for="task_name">Task Name:</label>
-            <input type="text" name="task_name" class="form-control" required>
-        </div>
-        <div class="form-group">
-            <label for="priority">Priority:</label>
-            <select name="priority" class="form-control" required>
-                <option>Critical</option>
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
-                <option>Optional</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="effort">Effort:</label>
-            <select name="effort" class="form-control" required>
-                <option>Very High</option>
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="mandays">Mandays:</label>
-            <input type="number" name="mandays" class="form-control" required>
-        </div>
-        <div class="form-group">
-            <label for="due_date">Due Date:</label>
-            <input type="date" name="due_date" class="form-control" required>
-        </div>
-        <button type="submit" name="create_task" class="btn btn-success btn-block">Create Task</button>
-    </form>
-    <hr>
-    <h3>All Tasks</h3>
-    <table class="table table-bordered task-table">
-        <thead>
-            <tr>
-                <th>Task Name</th>
-                <th>Priority</th>
-                <th>Effort</th>
-                <th>Mandays</th>
-                <th>Due Date</th>
-                <th>Score</th>
-                <th>In Progress</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($tasks as $task): ?>
-                <tr>
-                    <td><?= htmlspecialchars($task['task_name']) ?></td>
-                    <td><?= htmlspecialchars($task['priority']) ?></td>
-                    <td><?= htmlspecialchars($task['effort']) ?></td>
-                    <td><?= htmlspecialchars($task['mandays']) ?></td>
-                    <td><?= htmlspecialchars($task['due_date']) ?></td>
-                    <td><?= calculateTaskScore($task) ?></td>
-                    <td>
-                        <form method="POST" style="display:inline;">
-                            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                            <input type="checkbox" name="mark_progress" <?= $task['progress'] ? 'checked' : '' ?> onchange="this.form.submit()"> Mark as In Progress
-                        </form>
-                    </td>
-                    <td>
-                        <form method="POST" style="display:inline;">
-                            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                            <button type="submit" name="delete_task" class="btn btn-danger">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
+</div>
+<form method="POST" class="mb-4">
+    <input type="text" name="task_name" class="form-control mb-2" placeholder="Task Name" required>
+    <select name="priority" class="form-select mb-2">
+        <option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Optional</option>
+    </select>
+    <select name="effort" class="form-select mb-2">
+        <option>Very High</option><option>High</option><option>Medium</option><option>Low</option>
+    </select>
+    <input type="number" name="mandays" class="form-control mb-2" placeholder="Mandays" required>
+    <input type="date" name="due_date" class="form-control mb-2" required>
+    <button type="submit" name="create_task" class="btn btn-primary w-100">Create Task</button>
+</form>
+<h3>Your Tasks</h3>
+<?php foreach ($tasks as $task): ?>
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title mb-1"><?= htmlspecialchars($task['task_name']) ?>
+            <?php if ($task['in_progress']): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
+        </h5>
+        <p class="card-text mb-1"><strong>Priority:</strong> <?= htmlspecialchars($task['priority']) ?>
+            | <strong>Effort:</strong> <?= htmlspecialchars($task['effort']) ?>
+            | <strong>Mandays:</strong> <?= $task['mandays'] ?>
+            | <strong>Due:</strong> <?= $task['due_date'] ?>
+        </p>
+        <p class="card-text"><strong>Score:</strong> <?= calculateTaskScore($task) ?></p>
+        <form method="POST" class="d-inline">
+            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+            <button type="submit" name="delete_task" class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+        <?php if (!$task['in_progress']): ?>
+        <form method="POST" class="d-inline">
+            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+            <input type="hidden" name="mark_progress" value="1">
+            <input type="checkbox" onchange="this.form.submit()">
+            Mark as In Progress
+        </form>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endforeach; ?>
 <?php endif; ?>
 </body>
 </html>
