@@ -169,8 +169,8 @@ if ($_SESSION['loggedin'] ?? false) {
                 <p class="card-text mb-1">
                     <strong>Priority:</strong> <?= htmlspecialchars($task['priority']) ?><br>
                     <strong>Effort:</strong> <?= htmlspecialchars($task['effort']) ?><br>
-                    <strong>Mandays:</strong> <?= $task['mandays'] ?><br>
-                    <strong>Due:</strong> <?= $task['due_date'] ?><br>
+                    <strong>Mandays:</strong> <?= htmlspecialchars($task['mandays']) ?><br>
+                    <strong>Due:</strong> <?= htmlspecialchars($task['due_date']) ?><br>
                     <strong>Score:</strong> <?= calculateTaskScore($task) ?>
                 </p>
                 <form method="POST" class="d-inline">
