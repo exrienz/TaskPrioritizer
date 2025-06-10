@@ -98,9 +98,6 @@ function calculateTaskScore($task) {
     $mandays = max(1, (int)$task['mandays']);
     $daysLeft = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
 
-    $priorityScore = ($criticality * (1 / $effort) * 50) + ($mandays * -5) + (40 / ($daysLeft + 1));
-
-    return round($priorityScore, 2);
 }
 
 $tasks = [];
