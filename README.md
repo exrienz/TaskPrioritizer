@@ -18,28 +18,23 @@ Demo: https://todo.code-x.my/
 
 #### How Task Scores Are Calculated
 
-The task score is calculated dynamically using the following formula:
+Task priority uses a weighted formula that factors in criticality, effort, due date urgency and estimated mandays. Priority and effort values are first mapped to numerical scores (criticality `1-5`, effort `1-4`). The calculation uses the following weights:
+
+- **Criticality weight**: 40
+- **Effort weight**: 25
+- **Urgency weight**: 30
+- **Mandays weight**: 10
+
+The urgency factor is `1 / (days_left + 1)` where `days_left` is the number of days until the due date. The final score is computed as:
 
 ```
-Task Score = Priority Score + Urgency Score + Effort Score + Mandays Score
+score = (criticality_weight * criticality)
+      + (effort_weight * (1 / effort))
+      + (urgency_weight * urgency_factor)
+      - (mandays_weight * log(mandays + 1))
 ```
 
-**Priority Score**:
-- Critical: 3
-- High: 2
-- Medium: 1
-- Low: 0
-
-**Urgency Score**:
-- Calculated as `max(0, 10 - days_remaining)` where `days_remaining` is the number of days until the due date.
-
-**Effort Score**:
-- Low: 2
-- Medium: 1
-- High: 0
-
-**Mandays Score**:
-- Calculated as `max(0, 10 - mandays)`.
+The score is clamped between **0** and **100** for easy interpretation.
 
 #### Installation
 

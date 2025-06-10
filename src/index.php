@@ -91,16 +91,32 @@ if (isset($_POST['logout'])) {
 
 function calculateTaskScore($task) {
     $criticalityMap = ['Optional' => 1, 'Low' => 2, 'Medium' => 3, 'High' => 4, 'Critical' => 5];
-    $effortMap = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
+    $effortMap      = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
 
     $criticality = $criticalityMap[$task['priority']] ?? 1;
-    $effort = $effortMap[$task['effort']] ?? 2;
-    $mandays = max(1, (int)$task['mandays']);
-    $daysLeft = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
+    $effort      = $effortMap[$task['effort']] ?? 2;
+    $mandays     = max(1, (int) $task['mandays']);
+    $daysLeft    = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
 
-    $priorityScore = ($criticality * (1 / $effort) * 50) + ($mandays * -5) + (40 / ($daysLeft + 1));
+    // Tunable weights
+    $criticality_weight = 40;
+    $effort_weight      = 25;
+    $urgency_weight     = 30;
+    $mandays_weight     = 10;
 
-    return round($priorityScore, 2);
+    // Urgency factor: smooth exponential decay - high when deadline is close
+    $urgency_factor = 1 / ($daysLeft + 1);
+
+    // Calculate score
+    $score = ($criticality_weight * $criticality)
+           + ($effort_weight * (1 / $effort))
+           + ($urgency_weight * $urgency_factor)
+           - ($mandays_weight * log($mandays + 1));
+
+    // Clamp to 0 - 100 range for easier interpretation
+    $score = max(0, min(100, $score));
+
+    return round($score, 2);
 }
 
 $tasks = [];
