@@ -101,13 +101,14 @@ function calculateTaskScore($task) {
     $CRITICALITY_WEIGHT = 50;
     $EFFORT_WEIGHT      = 20;
     $MANDAYS_WEIGHT     = 15;
-    $URGENCY_MAX        = 40;
+    $URGENCY_MAX        = 80;  // Increased from 40
     $OVERDUE_BOOST      = 100;
 
+    // Urgency calculation (reciprocal for non-overdue, fixed boost for overdue)
     if ($daysLeft < 0) {
         $urgencyScore = $OVERDUE_BOOST;
     } else {
-        $urgencyScore = $URGENCY_MAX / (1 + exp(($daysLeft - 5) / 1.5));
+        $urgencyScore = $URGENCY_MAX / (1 + $daysLeft); // DaysLeft=0 gives 80, 1 gives 40, etc.
     }
 
     $score  = 0;
