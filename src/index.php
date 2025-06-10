@@ -91,23 +91,30 @@ if (isset($_POST['logout'])) {
 
 function calculateTaskScore($task) {
     $criticalityMap = ['Optional' => 1, 'Low' => 2, 'Medium' => 3, 'High' => 4, 'Critical' => 5];
-    $effortMap = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
+    $effortMap      = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
 
     $criticality = $criticalityMap[$task['priority']] ?? 1;
     $effort      = $effortMap[$task['effort']] ?? 2;
     $mandays     = max(1, (int) $task['mandays']);
-    $daysLeft    = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
+    $daysLeft    = ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
 
     $CRITICALITY_WEIGHT = 50;
     $EFFORT_WEIGHT      = 20;
     $MANDAYS_WEIGHT     = 15;
-    $URGENCY_WEIGHT     = 30;
+    $URGENCY_MAX        = 40;
+    $OVERDUE_BOOST      = 100;
+
+    if ($daysLeft < 0) {
+        $urgencyScore = $OVERDUE_BOOST;
+    } else {
+        $urgencyScore = $URGENCY_MAX / (1 + exp(($daysLeft - 5) / 1.5));
+    }
 
     $score  = 0;
     $score += $criticality * $CRITICALITY_WEIGHT;
     $score += ($EFFORT_WEIGHT / $effort);
     $score += ($MANDAYS_WEIGHT / $mandays);
-    $score += ($URGENCY_WEIGHT / ($daysLeft + 1));
+    $score += $urgencyScore;
 
     return round($score, 2);
 }
