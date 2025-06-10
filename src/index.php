@@ -98,23 +98,16 @@ function calculateTaskScore($task) {
     $mandays     = max(1, (int) $task['mandays']);
     $daysLeft    = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
 
-    // Tunable weights
-    $criticality_weight = 40;
-    $effort_weight      = 25;
-    $urgency_weight     = 30;
-    $mandays_weight     = 10;
+    $CRITICALITY_WEIGHT = 50;
+    $EFFORT_WEIGHT      = 20;
+    $MANDAYS_WEIGHT     = 15;
+    $URGENCY_WEIGHT     = 30;
 
-    // Urgency factor: smooth exponential decay - high when deadline is close
-    $urgency_factor = 1 / ($daysLeft + 1);
-
-    // Calculate score
-    $score = ($criticality_weight * $criticality)
-           + ($effort_weight * (1 / $effort))
-           + ($urgency_weight * $urgency_factor)
-           - ($mandays_weight * log($mandays + 1));
-
-    // Clamp to 0 - 100 range for easier interpretation
-    $score = max(0, min(100, $score));
+    $score  = 0;
+    $score += $criticality * $CRITICALITY_WEIGHT;
+    $score += ($EFFORT_WEIGHT / $effort);
+    $score += ($MANDAYS_WEIGHT / $mandays);
+    $score += ($URGENCY_WEIGHT / ($daysLeft + 1));
 
     return round($score, 2);
 }

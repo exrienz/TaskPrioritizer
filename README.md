@@ -20,21 +20,21 @@ Demo: https://todo.code-x.my/
 
 Task priority uses a weighted formula that factors in criticality, effort, due date urgency and estimated mandays. Priority and effort values are first mapped to numerical scores (criticality `1-5`, effort `1-4`). The calculation uses the following weights:
 
-- **Criticality weight**: 40
-- **Effort weight**: 25
+- **Criticality weight**: 50
+- **Effort weight**: 20
+- **Mandays weight**: 15
 - **Urgency weight**: 30
-- **Mandays weight**: 10
 
-The urgency factor is `1 / (days_left + 1)` where `days_left` is the number of days until the due date. The final score is computed as:
+The urgency component uses `1 / (days_left + 1)` where `days_left` is the number of days until the due date. The final score is computed as:
 
 ```
-score = (criticality_weight * criticality)
-      + (effort_weight * (1 / effort))
-      + (urgency_weight * urgency_factor)
-      - (mandays_weight * log(mandays + 1))
+score = (criticality * CRITICALITY_WEIGHT)
+      + (EFFORT_WEIGHT / effort)
+      + (MANDAYS_WEIGHT / mandays)
+      + (URGENCY_WEIGHT / (days_left + 1))
 ```
 
-The score is clamped between **0** and **100** for easy interpretation.
+The score is rounded to two decimal places.
 
 #### Installation
 
