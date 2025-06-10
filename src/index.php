@@ -94,10 +94,22 @@ function calculateTaskScore($task) {
     $effortMap = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
 
     $criticality = $criticalityMap[$task['priority']] ?? 1;
-    $effort = $effortMap[$task['effort']] ?? 2;
-    $mandays = max(1, (int)$task['mandays']);
-    $daysLeft = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
+    $effort      = $effortMap[$task['effort']] ?? 2;
+    $mandays     = max(1, (int) $task['mandays']);
+    $daysLeft    = max(0, ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400));
 
+    $CRITICALITY_WEIGHT = 50;
+    $EFFORT_WEIGHT      = 20;
+    $MANDAYS_WEIGHT     = 15;
+    $URGENCY_WEIGHT     = 30;
+
+    $score  = 0;
+    $score += $criticality * $CRITICALITY_WEIGHT;
+    $score += ($EFFORT_WEIGHT / $effort);
+    $score += ($MANDAYS_WEIGHT / $mandays);
+    $score += ($URGENCY_WEIGHT / ($daysLeft + 1));
+
+    return round($score, 2);
 }
 
 $tasks = [];
