@@ -208,5 +208,9 @@ if ($_SESSION['loggedin'] ?? false) {
 <?php endforeach; ?>
 </div>
 <?php endif; ?>
+<footer class="text-center mt-4">
+    <a href="/">Back to Home</a><br>
+    Vibe coded by Exrienz with <span style="color:red">&#10084;</span>
+</footer>
 </body>
 </html>
