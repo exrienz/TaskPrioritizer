@@ -23,15 +23,21 @@ Task priority uses a weighted formula that factors in criticality, effort, due d
 - **Criticality weight**: 50
 - **Effort weight**: 20
 - **Mandays weight**: 15
-- **Urgency weight**: 30
+- **Urgency max**: 40
+- **Overdue boost**: 100
 
-The urgency component uses `1 / (days_left + 1)` where `days_left` is the number of days until the due date. The final score is computed as:
+Urgency now follows a sigmoid curve that increases as the due date approaches, and overdue tasks receive an additional boost:
 
 ```
+if days_left < 0:
+    urgency = OVERDUE_BOOST
+else:
+    urgency = URGENCY_MAX / (1 + exp((days_left - 5) / 1.5))
+
 score = (criticality * CRITICALITY_WEIGHT)
       + (EFFORT_WEIGHT / effort)
       + (MANDAYS_WEIGHT / mandays)
-      + (URGENCY_WEIGHT / (days_left + 1))
+      + urgency
 ```
 
 The score is rounded to two decimal places.
