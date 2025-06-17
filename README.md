@@ -1,4 +1,4 @@
-#### JWT Task Prioritizer
+#### Token-Based Task Prioritizer
 
 A lightweight Task Prioritizer built with PHP and SQLite, designed to help you manage tasks dynamically. This system calculates task scores based on priority, effort, mandays, and due dates, and sorts tasks by their scores in real-time.
 
@@ -6,14 +6,14 @@ Demo: https://todo.code-x.my/
 
 #### Features
 
-- **User Authentication with JWT**: Register with a username and password and receive a JWT token on login.
+- **Token-Based Authentication**: Generate unique tokens to log in and manage tasks securely.
 - **Dynamic Task Scoring**:
   - Scores are calculated dynamically based on priority, effort, mandays, and due dates.
   - Tasks are automatically sorted by their scores in descending order. ****
 - **Task Management**:
   - Add tasks with details such as priority, effort, mandays, and due date.
   - Delete tasks easily.
-- **SQLite Database**: Lightweight and easy-to-use database for storing users and tasks.
+- **SQLite Database**: Lightweight and easy-to-use database for storing tasks and tokens.
 - **Docker Support**: Run the application in a Docker container for easy deployment.
 
 #### How Task Scores Are Calculated
@@ -84,7 +84,7 @@ The score is rounded to two decimal places.
 
 2. Set Up the Database:
    - Ensure the SQLite3 extension is enabled in your PHP installation.
-   - The application will automatically create the required database (`task_management.db`) and tables (`users` and `tasks`) when you run it for the first time.
+   - The application will automatically create the required database (`task_management.db`) and tables (`tokens` and `tasks`) when you run it for the first time.
 
 3. Run the Application:
    - Place the project files in your web server's root directory (e.g., `htdocs` for XAMPP or `www` for WAMP).
@@ -92,11 +92,12 @@ The score is rounded to two decimal places.
 
 #### How to Use
 
-1. **Register an Account**:
-   - Provide a username and password on the registration form.
+1. **Generate a Token**:
+   - On the homepage, click the "Generate Token" button to create a unique token.
+   - Copy the token for future use.
 
 2. **Log In**:
-   - Sign in with your credentials to receive a JWT token stored in a cookie.
+   - Enter your token in the login form to access the task management area.
 
 3. **Manage Tasks**:
    - Add tasks by filling out the task form with details such as task name, priority, effort, mandays, and due date. ****
