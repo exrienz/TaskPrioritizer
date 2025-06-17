@@ -83,6 +83,14 @@ if (isset($_POST['mark_progress']) && $_SESSION['loggedin'] === true) {
     $stmt->execute();
 }
 
+if (isset($_POST['edit_task']) && $_SESSION['loggedin'] === true) {
+    $stmt = $db->prepare("UPDATE tasks SET task_name = ? WHERE id = ? AND token = ?");
+    $stmt->bindValue(1, $_POST['new_task_name']);
+    $stmt->bindValue(2, $_POST['task_id']);
+    $stmt->bindValue(3, $_SESSION['token']);
+    $stmt->execute();
+}
+
 if (isset($_POST['logout'])) {
     session_destroy();
     header("Location: index.php");
@@ -188,6 +196,15 @@ if ($_SESSION['loggedin'] ?? false) {
                     <strong>Effort:</strong> <?= htmlspecialchars($task['effort']) ?><br>
                     <strong>Mandays:</strong> <?= htmlspecialchars($task['mandays']) ?><br>
                     <strong>Due:</strong> <?= htmlspecialchars($task['due_date']) ?><br>
+                    <?php
+                        $daysLeft = ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
+                        if ($daysLeft < 0) {
+                            $daysLeftText = abs($daysLeft) . ' day(s) overdue';
+                        } else {
+                            $daysLeftText = $daysLeft . ' day(s) left';
+                        }
+                    ?>
+                    <strong>Time Left:</strong> <?= $daysLeftText ?><br>
                     <strong>Score:</strong> <?= calculateTaskScore($task) ?>
                 </p>
                 <form method="POST" class="d-inline">
@@ -202,6 +219,13 @@ if ($_SESSION['loggedin'] ?? false) {
                     Mark as In Progress
                 </form>
                 <?php endif; ?>
+                <form method="POST" class="mt-2">
+                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+                    <div class="input-group">
+                        <input type="text" name="new_task_name" class="form-control" value="<?= htmlspecialchars($task['task_name']) ?>" required>
+                        <button type="submit" name="edit_task" class="btn btn-outline-primary">Update</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
