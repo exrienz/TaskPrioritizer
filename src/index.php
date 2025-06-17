@@ -146,47 +146,59 @@ if ($_SESSION['loggedin'] ?? false) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <title>Task Management System</title>
     <style>
-        body { padding-top: 2rem; background-color: #f9f9f9; }
+        body { background-color: #f8f9fa; }
         .card { margin-bottom: 1rem; }
         .progress-badge { background-color: #ffc107; color: #000; font-size: 0.8em; padding: 0.2em 0.6em; border-radius: 5px; }
     </style>
 </head>
-<body class="container">
+<body>
+<div class="container py-4">
+    <h1 class="text-center mb-4">Task Management System</h1>
 <?php if (!($_SESSION['loggedin'] ?? false)): ?>
-<h2 class="mb-4">Generate Token</h2>
-<form method="POST" class="mb-4">
-    <button type="submit" name="generate_token" class="btn btn-primary">Generate Token</button>
-</form>
-<h2>Login</h2>
-<form method="POST">
-    <label for="token">Enter Your Token:</label>
-    <input type="text" class="form-control" name="token" id="token" required>
-    <button type="submit" name="login" class="btn btn-success mt-2">Login</button>
-</form>
-<?php else: ?>
-<div class="d-flex justify-content-between align-items-center">
-    <h2>Create Task</h2>
-    <form method="POST">
-        <button name="logout" class="btn btn-danger">Logout</button>
-    </form>
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <h2 class="mb-4 text-center">Generate Token</h2>
+        <form method="POST" class="mb-4 text-center">
+            <button type="submit" name="generate_token" class="btn btn-primary">Generate Token</button>
+        </form>
+        <h2 class="text-center">Login</h2>
+        <form method="POST">
+            <label for="token" class="form-label">Enter Your Token:</label>
+            <input type="text" class="form-control" name="token" id="token" required>
+            <button type="submit" name="login" class="btn btn-success w-100 mt-2">Login</button>
+        </form>
+    </div>
 </div>
-<form method="POST" class="mb-4">
-    <input type="text" name="task_name" class="form-control mb-2" placeholder="Task Name" required>
-    <select name="priority" class="form-select mb-2">
-        <option>Choose Priority</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Optional</option>
-    </select>
-    <select name="effort" class="form-select mb-2">
-        <option>Choose Effort</option><option>Very High</option><option>High</option><option>Medium</option><option>Low</option>
-    </select>
-    <input type="number" name="mandays" class="form-control mb-2" placeholder="Mandays" required>
-    <input type="date" name="due_date" class="form-control mb-2" required>
-    <button type="submit" name="create_task" class="btn btn-primary w-100">Create Task</button>
-</form>
+<?php else: ?>
+<div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">Create Task</h2>
+        <form method="POST" class="ms-2">
+            <button name="logout" class="btn btn-danger">Logout</button>
+        </form>
+    </div>
+</div>
+<div class="row justify-content-center mb-4">
+    <div class="col-12 col-md-10 col-lg-8 col-xl-6">
+        <form method="POST" class="p-3 border rounded bg-white">
+            <input type="text" name="task_name" class="form-control mb-2" placeholder="Task Name" required>
+            <select name="priority" class="form-select mb-2">
+                <option>Choose Priority</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Optional</option>
+            </select>
+            <select name="effort" class="form-select mb-2">
+                <option>Choose Effort</option><option>Very High</option><option>High</option><option>Medium</option><option>Low</option>
+            </select>
+            <input type="number" name="mandays" class="form-control mb-2" placeholder="Mandays" required>
+            <input type="date" name="due_date" class="form-control mb-2" required>
+            <button type="submit" name="create_task" class="btn btn-primary w-100">Create Task</button>
+        </form>
+    </div>
+</div>
 <h3>Your Tasks</h3>
-<div class="row">
+<div class="row g-3">
 <?php foreach ($tasks as $task): ?>
-    <div class="col-md-6 col-lg-4">
-        <div class="card">
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= htmlspecialchars($task['task_name']) ?>
                     <?php if (!empty($task['in_progress'])): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
@@ -236,5 +248,6 @@ if ($_SESSION['loggedin'] ?? false) {
     <a href="/">Back to Home</a><br>
     Vibe coded by Exrienz with <span style="color:red">&#10084;</span>
 </footer>
+</div>
 </body>
 </html>
