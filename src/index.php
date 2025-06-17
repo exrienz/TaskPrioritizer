@@ -8,6 +8,12 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+// Security headers
+header('X-Frame-Options: SAMEORIGIN');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: no-referrer-when-downgrade');
+header("Content-Security-Policy: default-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://cdn.jsdelivr.net; script-src 'self' https://cdn.jsdelivr.net");
+
 $db = new SQLite3('/var/www/db/task_management.db');
 
 // Create tables if not exists
@@ -191,40 +197,50 @@ if ($_SESSION['loggedin'] ?? false) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/style.css" rel="stylesheet">
     <title>Task Management System</title>
     <style>
-        body { background-color: #f8f9fa; }
-        .card { margin-bottom: 1rem; }
         .progress-badge { background-color: #ffc107; color: #000; font-size: 0.8em; padding: 0.2em 0.6em; border-radius: 5px; }
     </style>
 </head>
 <body>
+<nav class="navbar navbar-expand-lg mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="#">Task Prioritizer</a>
+        <div class="ms-auto navbar-text d-flex align-items-center">
+            <?php if ($_SESSION['loggedin'] ?? false): ?>
+                <span class="me-3">Logged in as <?= htmlspecialchars($_SESSION['username']) ?></span>
+                <form method="POST" class="d-inline">
+                    <button name="logout" class="btn btn-sm btn-outline-light">Logout</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+</nav>
 <div class="container py-4">
-    <h1 class="text-center mb-4">Task Management System</h1>
 <?php if (!($_SESSION['loggedin'] ?? false)): ?>
 <div class="row justify-content-center">
-    <div class="col-12 col-md-8 col-lg-6">
-        <h2 class="mb-4 text-center">Register</h2>
-        <form method="POST" class="mb-4">
+    <div class="col-12 col-md-5 mb-4 mb-md-0">
+        <h2 class="text-center mb-3">Register</h2>
+        <form method="POST" class="p-3 border rounded bg-white">
             <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
             <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
             <button type="submit" name="register" class="btn btn-primary w-100">Register</button>
         </form>
-        <h2 class="text-center">Login</h2>
-        <form method="POST">
+    </div>
+    <div class="col-12 col-md-5">
+        <h2 class="text-center mb-3">Login</h2>
+        <form method="POST" class="p-3 border rounded bg-white">
             <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
             <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
-            <button type="submit" name="login" class="btn btn-success w-100 mt-2">Login</button>
+            <button type="submit" name="login" class="btn btn-success w-100">Login</button>
         </form>
     </div>
 </div>
 <?php else: ?>
 <div class="row mb-3">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h2 class="mb-0">Create Task</h2>
-        <form method="POST" class="ms-2">
-            <button name="logout" class="btn btn-danger">Logout</button>
-        </form>
+    <div class="col-12">
+        <h2>Create Task</h2>
     </div>
 </div>
 <div class="row justify-content-center mb-4">
@@ -243,11 +259,11 @@ if ($_SESSION['loggedin'] ?? false) {
         </form>
     </div>
 </div>
-<h3>Your Tasks</h3>
+<h3 class="mb-3">Your Tasks</h3>
 <div class="row g-3">
 <?php foreach ($tasks as $task): ?>
     <div class="col-12 col-md-6 col-lg-4">
-        <div class="card h-100">
+        <div class="card h-100 shadow-sm">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= htmlspecialchars($task['task_name']) ?>
                     <?php if (!empty($task['in_progress'])): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
