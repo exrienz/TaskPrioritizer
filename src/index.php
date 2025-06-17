@@ -11,102 +11,56 @@ if (session_status() == PHP_SESSION_NONE) {
 $db = new SQLite3('/var/www/db/task_management.db');
 
 // Create tables if not exists
-$db->exec("CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    password TEXT
-);");
+$db->exec("CREATE TABLE IF NOT EXISTS tokens (token TEXT PRIMARY KEY);");
 $db->exec("CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL,
     task_name TEXT NOT NULL,
     priority TEXT NOT NULL,
     effort TEXT NOT NULL,
     mandays INTEGER NOT NULL,
     due_date TEXT NOT NULL,
-    in_progress INTEGER DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (token) REFERENCES tokens(token)
 );");
 
-// Secret key for JWT generation
-$secretKey = 'change_this_secret_key';
-
-function base64UrlEncode(string $text): string {
-    return str_replace('=', '', strtr(base64_encode($text), '+/', '-_'));
-}
-
-function generateJWT(array $payload, string $secret): string {
-    $header = ['alg' => 'HS256', 'typ' => 'JWT'];
-    $segments = [];
-    $segments[] = base64UrlEncode(json_encode($header));
-    $segments[] = base64UrlEncode(json_encode($payload));
-    $signature = hash_hmac('sha256', implode('.', $segments), $secret, true);
-    $segments[] = base64UrlEncode($signature);
-    return implode('.', $segments);
-}
-
-function verifyJWT(string $token, string $secret) {
-    $parts = explode('.', $token);
-    if (count($parts) !== 3) {
-        return false;
-    }
-    [$header64, $payload64, $sig] = $parts;
-    $expected = base64UrlEncode(hash_hmac('sha256', "$header64.$payload64", $secret, true));
-    if (!hash_equals($expected, $sig)) {
-        return false;
-    }
-    $payload = json_decode(base64_decode(strtr($payload64, '-_', '+/')), true);
-    if (!$payload || ($payload['exp'] ?? 0) < time()) {
-        return false;
-    }
-    return $payload;
-}
-
-// Authenticate user if JWT cookie exists
-if (!($_SESSION['loggedin'] ?? false) && isset($_COOKIE['jwt'])) {
-    $payload = verifyJWT($_COOKIE['jwt'], $secretKey);
-    if ($payload) {
-        $_SESSION['loggedin'] = true;
-        $_SESSION['user_id'] = $payload['uid'];
-        $_SESSION['username'] = $payload['username'];
+// Ensure in_progress column exists
+$columns = $db->query("PRAGMA table_info(tasks);");
+$columnExists = false;
+while ($col = $columns->fetchArray(SQLITE3_ASSOC)) {
+    if ($col['name'] === 'in_progress') {
+        $columnExists = true;
+        break;
     }
 }
+if (!$columnExists) {
+    $db->exec("ALTER TABLE tasks ADD COLUMN in_progress INTEGER DEFAULT 0;");
+}
 
-if (isset($_POST['register'])) {
-    $username = trim($_POST['username']);
-    $password = $_POST['password'];
-    $hash = password_hash($password, PASSWORD_BCRYPT);
-    $stmt = $db->prepare("INSERT INTO users (username, password) VALUES (?, ?)");
-    $stmt->bindValue(1, $username, SQLITE3_TEXT);
-    $stmt->bindValue(2, $hash, SQLITE3_TEXT);
-    if ($stmt->execute()) {
-        echo '<p>Registration successful. Please log in.</p>';
-    } else {
-        echo '<p>Username already taken.</p>';
-    }
+if (isset($_POST['generate_token'])) {
+    $token = bin2hex(random_bytes(16));
+    $_SESSION['token'] = $token;
+    $stmt = $db->prepare("INSERT INTO tokens (token) VALUES (?)");
+    $stmt->bindValue(1, $token, SQLITE3_TEXT);
+    $stmt->execute();
+    echo "<p>Your unique token: <strong>$token</strong></p>";
 }
 
 if (isset($_POST['login'])) {
-    $username = trim($_POST['username']);
-    $password = $_POST['password'];
-    $stmt = $db->prepare("SELECT * FROM users WHERE username = ?");
-    $stmt->bindValue(1, $username, SQLITE3_TEXT);
-    $result = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
-    if ($result && password_verify($password, $result['password'])) {
+    $token = $_POST['token'];
+    $stmt = $db->prepare("SELECT token FROM tokens WHERE token = ?");
+    $stmt->bindValue(1, $token, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    if ($result->fetchArray()) {
         $_SESSION['loggedin'] = true;
-        $_SESSION['user_id'] = $result['id'];
-        $_SESSION['username'] = $result['username'];
-        $payload = ['uid' => $result['id'], 'username' => $result['username'], 'exp' => time() + 3600];
-        $jwt = generateJWT($payload, $secretKey);
-        setcookie('jwt', $jwt, time() + 3600, '/', '', false, true);
+        $_SESSION['token'] = $token;
     } else {
-        echo '<p>Invalid credentials!</p>';
+        echo "<p>Invalid Token!</p>";
     }
 }
 
-if (isset($_POST['create_task']) && ($_SESSION['loggedin'] ?? false)) {
-    $stmt = $db->prepare("INSERT INTO tasks (user_id, task_name, priority, effort, mandays, due_date, in_progress) VALUES (?, ?, ?, ?, ?, ?, 0)");
-    $stmt->bindValue(1, $_SESSION['user_id'], SQLITE3_INTEGER);
+if (isset($_POST['create_task']) && $_SESSION['loggedin'] === true) {
+    $stmt = $db->prepare("INSERT INTO tasks (token, task_name, priority, effort, mandays, due_date, in_progress) VALUES (?, ?, ?, ?, ?, ?, 0)");
+    $stmt->bindValue(1, $_SESSION['token']);
     $stmt->bindValue(2, $_POST['task_name']);
     $stmt->bindValue(3, $_POST['priority']);
     $stmt->bindValue(4, $_POST['effort']);
@@ -115,32 +69,31 @@ if (isset($_POST['create_task']) && ($_SESSION['loggedin'] ?? false)) {
     $stmt->execute();
 }
 
-if (isset($_POST['delete_task']) && ($_SESSION['loggedin'] ?? false)) {
-    $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND user_id = ?");
+if (isset($_POST['delete_task']) && $_SESSION['loggedin'] === true) {
+    $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND token = ?");
     $stmt->bindValue(1, $_POST['task_id']);
-    $stmt->bindValue(2, $_SESSION['user_id'], SQLITE3_INTEGER);
+    $stmt->bindValue(2, $_SESSION['token']);
     $stmt->execute();
 }
 
-if (isset($_POST['mark_progress']) && ($_SESSION['loggedin'] ?? false)) {
-    $stmt = $db->prepare("UPDATE tasks SET in_progress = 1 WHERE id = ? AND user_id = ?");
+if (isset($_POST['mark_progress']) && $_SESSION['loggedin'] === true) {
+    $stmt = $db->prepare("UPDATE tasks SET in_progress = 1 WHERE id = ? AND token = ?");
     $stmt->bindValue(1, $_POST['task_id']);
-    $stmt->bindValue(2, $_SESSION['user_id'], SQLITE3_INTEGER);
+    $stmt->bindValue(2, $_SESSION['token']);
     $stmt->execute();
 }
 
-if (isset($_POST['edit_task']) && ($_SESSION['loggedin'] ?? false)) {
-    $stmt = $db->prepare("UPDATE tasks SET task_name = ? WHERE id = ? AND user_id = ?");
+if (isset($_POST['edit_task']) && $_SESSION['loggedin'] === true) {
+    $stmt = $db->prepare("UPDATE tasks SET task_name = ? WHERE id = ? AND token = ?");
     $stmt->bindValue(1, $_POST['new_task_name']);
     $stmt->bindValue(2, $_POST['task_id']);
-    $stmt->bindValue(3, $_SESSION['user_id'], SQLITE3_INTEGER);
+    $stmt->bindValue(3, $_SESSION['token']);
     $stmt->execute();
 }
 
 if (isset($_POST['logout'])) {
-    setcookie('jwt', '', time() - 3600, '/');
     session_destroy();
-    header('Location: index.php');
+    header("Location: index.php");
     exit;
 }
 
@@ -177,8 +130,8 @@ function calculateTaskScore($task) {
 
 $tasks = [];
 if ($_SESSION['loggedin'] ?? false) {
-    $stmt = $db->prepare("SELECT * FROM tasks WHERE user_id = ?");
-    $stmt->bindValue(1, $_SESSION['user_id'], SQLITE3_INTEGER);
+    $stmt = $db->prepare("SELECT * FROM tasks WHERE token = ?");
+    $stmt->bindValue(1, $_SESSION['token']);
     $results = $stmt->execute();
     while ($row = $results->fetchArray(SQLITE3_ASSOC)) $tasks[] = $row;
     usort($tasks, fn($a, $b) => calculateTaskScore($b) <=> calculateTaskScore($a));
@@ -204,16 +157,14 @@ if ($_SESSION['loggedin'] ?? false) {
 <?php if (!($_SESSION['loggedin'] ?? false)): ?>
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
-        <h2 class="mb-4 text-center">Register</h2>
-        <form method="POST" class="mb-4">
-            <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
-            <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
-            <button type="submit" name="register" class="btn btn-primary w-100">Register</button>
+        <h2 class="mb-4 text-center">Generate Token</h2>
+        <form method="POST" class="mb-4 text-center">
+            <button type="submit" name="generate_token" class="btn btn-primary">Generate Token</button>
         </form>
         <h2 class="text-center">Login</h2>
         <form method="POST">
-            <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
-            <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
+            <label for="token" class="form-label">Enter Your Token:</label>
+            <input type="text" class="form-control" name="token" id="token" required>
             <button type="submit" name="login" class="btn btn-success w-100 mt-2">Login</button>
         </form>
     </div>
