@@ -109,14 +109,29 @@ function calculateTaskScore($task) {
     $CRITICALITY_WEIGHT = 50;
     $EFFORT_WEIGHT      = 20;
     $MANDAYS_WEIGHT     = 15;
-    $URGENCY_MAX        = 80;  // Increased from 40
+    $URGENCY_MAX        = 80;  // Base urgency for due dates
     $OVERDUE_BOOST      = 100;
 
-    // Urgency calculation (reciprocal for non-overdue, fixed boost for overdue)
+    // Additional boosts when approaching the due date
+    $BOOST_1_MONTH = 5;   // <= 30 days
+    $BOOST_1_WEEK  = 10;  // <= 7 days
+    $BOOST_3_DAYS  = 20;  // <= 3 days
+    $BOOST_1_DAY   = 30;  // <= 1 day
+
+    // Urgency calculation with stepped boosts as the due date approaches
     if ($daysLeft < 0) {
         $urgencyScore = $OVERDUE_BOOST;
     } else {
-        $urgencyScore = $URGENCY_MAX / (1 + $daysLeft); // DaysLeft=0 gives 80, 1 gives 40, etc.
+        $urgencyScore = $URGENCY_MAX / (1 + $daysLeft);
+        if ($daysLeft <= 1) {
+            $urgencyScore += $BOOST_1_DAY;
+        } elseif ($daysLeft <= 3) {
+            $urgencyScore += $BOOST_3_DAYS;
+        } elseif ($daysLeft <= 7) {
+            $urgencyScore += $BOOST_1_WEEK;
+        } elseif ($daysLeft <= 30) {
+            $urgencyScore += $BOOST_1_MONTH;
+        }
     }
 
     $score  = 0;
