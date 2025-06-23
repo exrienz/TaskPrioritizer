@@ -25,6 +25,11 @@ Task priority uses a weighted formula that factors in criticality, effort, due d
 - **Mandays weight**: 15
 - **Urgency max**: 80
 - **Overdue boost**: 100
+- **Due date boosts**:
+  - 1 month left: +5
+  - 1 week left: +10
+  - 3 days left: +20
+  - 1 day left: +30
 
 Urgency uses a reciprocal formula where tasks become more urgent as the due date approaches, and overdue tasks receive a fixed boost:
 
@@ -32,7 +37,17 @@ Urgency uses a reciprocal formula where tasks become more urgent as the due date
 if days_left < 0:
     urgency = OVERDUE_BOOST
 else:
-    urgency = URGENCY_MAX / (1 + days_left)
+    time_boost = 0
+    if days_left <= 1:
+        time_boost = BOOST_1_DAY
+    elif days_left <= 3:
+        time_boost = BOOST_3_DAYS
+    elif days_left <= 7:
+        time_boost = BOOST_1_WEEK
+    elif days_left <= 30:
+        time_boost = BOOST_1_MONTH
+
+    urgency = URGENCY_MAX / (1 + days_left) + time_boost
 
 score = (criticality * CRITICALITY_WEIGHT)
       + (EFFORT_WEIGHT / effort)
