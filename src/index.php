@@ -228,35 +228,73 @@ if (isset($_POST['logout'])) {
     exit;
 }
 
-function calculateTaskScore($task) {
-    $criticalityMap = ['Optional' => 1, 'Low' => 2, 'Medium' => 3, 'High' => 4, 'Critical' => 5];
-    $effortMap      = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
+function getPriorityScore($priority) {
+    $priorityMap = ['Optional' => 1, 'Low' => 2, 'Medium' => 3, 'High' => 4, 'Critical' => 5];
+    return $priorityMap[$priority] ?? 3;
+}
 
-    $criticality = $criticalityMap[$task['priority']] ?? 1;
-    $effort      = $effortMap[$task['effort']] ?? 2;
-    $mandays     = max(1, (int) $task['mandays']);
-    $daysLeft    = ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
+function getEffortScore($effort) {
+    $effortMap = ['Low' => 1, 'Medium' => 2, 'High' => 3, 'Very High' => 4];
+    return $effortMap[$effort] ?? 2;
+}
 
-    $CRITICALITY_WEIGHT = 50;
-    $EFFORT_WEIGHT      = 20;
-    $MANDAYS_WEIGHT     = 15;
-    $URGENCY_MAX        = 80;  // Increased from 40
-    $OVERDUE_BOOST      = 100;
-
-    // Urgency calculation (reciprocal for non-overdue, fixed boost for overdue)
+function calculateUrgentScore($task, $daysLeft) {
+    $priority = getPriorityScore($task['priority']);
+    $effort = getEffortScore($task['effort']);
+    $mandays = max(1, (int) $task['mandays']);
+    
+    // Urgent mode: Favor quick wins with reasonable effort consideration
+    $effortPenalty = ($effort * 8) + min($mandays * 2, 20); // Capped mandays penalty
+    
+    // Strong urgency boost for imminent deadlines
     if ($daysLeft < 0) {
-        $urgencyScore = $OVERDUE_BOOST;
+        $urgency = 200 + (abs($daysLeft) * 30); // Higher base + escalating penalty
+    } elseif ($daysLeft == 0) {
+        $urgency = 180; // Due today
+    } elseif ($daysLeft <= 1) {
+        $urgency = 150; // Due tomorrow  
     } else {
-        $urgencyScore = $URGENCY_MAX / (1 + $daysLeft); // DaysLeft=0 gives 80, 1 gives 40, etc.
+        $urgency = 120 / (1 + $daysLeft); // Strong urgency curve
     }
+    
+    $score = ($priority * 30) + $urgency - $effortPenalty;
+    return max(0, round($score, 2));
+}
 
-    $score  = 0;
-    $score += $criticality * $CRITICALITY_WEIGHT;
-    $score += ($EFFORT_WEIGHT / $effort);
-    $score += ($MANDAYS_WEIGHT / $mandays);
-    $score += $urgencyScore;
+function calculateStrategicScore($task, $daysLeft) {
+    $priority = getPriorityScore($task['priority']);
+    $effort = getEffortScore($task['effort']);
+    $mandays = max(1, (int) $task['mandays']);
+    
+    // Strategic mode: Balance priority with reasonable effort consideration
+    $urgency = 40 / (1 + $daysLeft * 0.05); // More urgency influence, gentler curve
+    
+    // Moderate penalties with strong high-priority forgiveness
+    $effortWeight = ($priority >= 4) ? 8 : 15; // Significant forgiveness for Critical/High
+    $mandaysWeight = ($priority >= 4) ? 1.5 : 3; // Much less penalty for high priority
+    
+    $effortPenalty = ($effort * $effortWeight) + ($mandays * $mandaysWeight);
+    
+    // Higher base score to ensure strategic tasks still rank meaningfully
+    $score = ($priority * 50) + $urgency - $effortPenalty;
+    return max(0, round($score, 2));
+}
 
-    return round($score, 2);
+function getTaskMode($daysLeft) {
+    return ($daysLeft <= 3 || $daysLeft < 0) ? 'URGENT' : 'STRATEGIC';
+}
+
+function calculateTaskScore($task) {
+    $daysLeft = ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
+    
+    // Adaptive strategy based on time constraints
+    if ($daysLeft <= 3 || $daysLeft < 0) {
+        // URGENT MODE: Favor quick wins and immediate completion
+        return calculateUrgentScore($task, $daysLeft);
+    } else {
+        // STRATEGIC MODE: Balance high-priority work with efficiency
+        return calculateStrategicScore($task, $daysLeft);
+    }
 }
 
 $tasks = [];
@@ -426,12 +464,22 @@ if ($_SESSION['loggedin'] ?? false) {
                         $daysLeft = ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
                         if ($daysLeft < 0) {
                             $daysLeftText = abs($daysLeft) . ' day(s) overdue';
+                            $daysLeftClass = 'text-danger fw-bold';
+                        } elseif ($daysLeft <= 3) {
+                            $daysLeftText = $daysLeft . ' day(s) left';
+                            $daysLeftClass = 'text-warning fw-bold';
                         } else {
                             $daysLeftText = $daysLeft . ' day(s) left';
+                            $daysLeftClass = 'text-success';
                         }
+                        
+                        $taskMode = getTaskMode($daysLeft);
+                        $taskScore = calculateTaskScore($task);
+                        $modeClass = ($taskMode == 'URGENT') ? 'badge bg-danger' : 'badge bg-primary';
                     ?>
-                    <strong>Time Left:</strong> <?= $daysLeftText ?><br>
-                    <strong>Score:</strong> <?= calculateTaskScore($task) ?>
+                    <strong>Time Left:</strong> <span class="<?= $daysLeftClass ?>"><?= $daysLeftText ?></span><br>
+                    <strong>Mode:</strong> <span class="<?= $modeClass ?>"><?= $taskMode ?></span><br>
+                    <strong>Score:</strong> <span class="fw-bold text-primary"><?= $taskScore ?></span>
                 </p>
                 <form method="POST" class="d-inline">
                     <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
