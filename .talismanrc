@@ -1,0 +1,8 @@
+fileignoreconfig:
+- filename: docker-compose.yml
+  checksum: b08d688e67daf3ce1d8444839b02764f9bf140b1ffcb1ae129db28ae4040b66c
+- filename: CLAUDE.md
+  checksum: 31c63e62232a7c5525cd3fc513c09726f7989e8eb7da9c1f272a657828b292b2
+- filename: src/index.php
+  checksum: 52e35db110d81fa7125f6a4f250a742ee784596ed0ed0ca9b4bb04a327732a08
+version: ""

@@ -8,87 +8,218 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
-$db = new SQLite3('/var/www/db/task_management.db');
+// Database configuration from environment variables
+$db_host = $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?? 'mysql';
+$db_port = $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?? '3306';
+$db_name = $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?? 'task_prioritizer';
+$db_user = $_ENV['DB_USER'] ?? getenv('DB_USER') ?? 'taskuser';
+$db_pass = $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?? 'secure_password_123';
 
-// Create tables if not exists
-$db->exec("CREATE TABLE IF NOT EXISTS tokens (token TEXT PRIMARY KEY);");
-$db->exec("CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT NOT NULL,
-    task_name TEXT NOT NULL,
-    priority TEXT NOT NULL,
-    effort TEXT NOT NULL,
-    mandays INTEGER NOT NULL,
-    due_date TEXT NOT NULL,
-    FOREIGN KEY (token) REFERENCES tokens(token)
-);");
-
-// Ensure in_progress column exists
-$columns = $db->query("PRAGMA table_info(tasks);");
-$columnExists = false;
-while ($col = $columns->fetchArray(SQLITE3_ASSOC)) {
-    if ($col['name'] === 'in_progress') {
-        $columnExists = true;
-        break;
+// Function to connect to MySQL server (without specifying database)
+function connectToMySQLServer($host, $port, $user, $pass, $maxRetries = 30) {
+    for ($i = 0; $i < $maxRetries; $i++) {
+        try {
+            $pdo = new PDO("mysql:host={$host};port={$port};charset=utf8mb4", $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false
+            ]);
+            return $pdo;
+        } catch (PDOException $e) {
+            if ($i === $maxRetries - 1) {
+                throw $e;
+            }
+            sleep(2); // Wait 2 seconds before retrying
+        }
     }
 }
-if (!$columnExists) {
-    $db->exec("ALTER TABLE tasks ADD COLUMN in_progress INTEGER DEFAULT 0;");
+
+// Function to initialize database and tables
+function initializeDatabase($pdo, $db_name) {
+    // Create database if it doesn't exist
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("USE `{$db_name}`");
+    
+    // Create users table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) NOT NULL UNIQUE,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            password_hash VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    
+    // Create tasks table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            task_name VARCHAR(500) NOT NULL,
+            priority ENUM('Optional', 'Low', 'Medium', 'High', 'Critical') NOT NULL DEFAULT 'Medium',
+            effort ENUM('Low', 'Medium', 'High', 'Very High') NOT NULL DEFAULT 'Medium',
+            mandays INT NOT NULL DEFAULT 1,
+            due_date DATE NOT NULL,
+            in_progress BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    
+    // Create indexes for better performance (with proper error handling)
+    try { $pdo->exec("CREATE INDEX idx_tasks_user_id ON tasks(user_id)"); } catch (PDOException $e) { /* Index might already exist */ }
+    try { $pdo->exec("CREATE INDEX idx_tasks_due_date ON tasks(due_date)"); } catch (PDOException $e) { /* Index might already exist */ }
+    try { $pdo->exec("CREATE INDEX idx_tasks_priority ON tasks(priority)"); } catch (PDOException $e) { /* Index might already exist */ }
+    try { $pdo->exec("CREATE INDEX idx_users_email ON users(email)"); } catch (PDOException $e) { /* Index might already exist */ }
+    try { $pdo->exec("CREATE INDEX idx_users_username ON users(username)"); } catch (PDOException $e) { /* Index might already exist */ }
 }
 
-if (isset($_POST['generate_token'])) {
-    $token = bin2hex(random_bytes(16));
-    $_SESSION['token'] = $token;
-    $stmt = $db->prepare("INSERT INTO tokens (token) VALUES (?)");
-    $stmt->bindValue(1, $token, SQLITE3_TEXT);
-    $stmt->execute();
-    echo "<p>Your unique token: <strong>$token</strong></p>";
+// Function to check if database is properly initialized
+function isDatabaseInitialized($pdo) {
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('users', 'tasks')");
+        return $stmt->fetchColumn() >= 2;
+    } catch (PDOException $e) {
+        return false;
+    }
 }
 
-if (isset($_POST['login'])) {
-    $token = $_POST['token'];
-    $stmt = $db->prepare("SELECT token FROM tokens WHERE token = ?");
-    $stmt->bindValue(1, $token, SQLITE3_TEXT);
-    $result = $stmt->execute();
-    if ($result->fetchArray()) {
-        $_SESSION['loggedin'] = true;
-        $_SESSION['token'] = $token;
+try {
+    // First, connect to MySQL server without specifying database
+    $pdo = connectToMySQLServer($db_host, $db_port, $db_user, $db_pass);
+    
+    // Initialize database and tables
+    initializeDatabase($pdo, $db_name);
+    
+    // Now connect to the specific database
+    $pdo = new PDO("mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4", $db_user, $db_pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false
+    ]);
+    
+    // Double-check that database is properly initialized
+    if (!isDatabaseInitialized($pdo)) {
+        throw new Exception("Database initialization failed");
+    }
+    
+} catch (Exception $e) {
+    // Show a user-friendly error page
+    $db_error = $e->getMessage();
+}
+
+// Skip processing if there's a database error
+if (isset($db_error)) {
+    // Will be handled in the HTML section
+} else {
+
+// User Registration
+if (isset($_POST['register'])) {
+    $username = trim($_POST['username']);
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+    
+    if (empty($username) || empty($email) || empty($password)) {
+        $error_message = "All fields are required.";
+    } elseif ($password !== $confirm_password) {
+        $error_message = "Passwords do not match.";
+    } elseif (strlen($password) < 6) {
+        $error_message = "Password must be at least 6 characters long.";
     } else {
-        echo "<p>Invalid Token!</p>";
+        try {
+            // Check if username or email already exists
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+            $stmt->execute([$username, $email]);
+            if ($stmt->fetch()) {
+                $error_message = "Username or email already exists.";
+            } else {
+                // Create new user
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
+                $stmt->execute([$username, $email, $password_hash]);
+                $success_message = "Registration successful! You can now log in.";
+            }
+        } catch (PDOException $e) {
+            $error_message = "Registration failed. Please try again.";
+        }
+    }
+}
+
+// User Login
+if (isset($_POST['login'])) {
+    $username = trim($_POST['username']);
+    $password = $_POST['password'];
+    
+    if (empty($username) || empty($password)) {
+        $error_message = "Username and password are required.";
+    } else {
+        try {
+            $stmt = $pdo->prepare("SELECT id, username, password_hash FROM users WHERE username = ? OR email = ?");
+            $stmt->execute([$username, $username]);
+            $user = $stmt->fetch();
+            
+            if ($user && password_verify($password, $user['password_hash'])) {
+                $_SESSION['loggedin'] = true;
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+            } else {
+                $error_message = "Invalid username or password.";
+            }
+        } catch (PDOException $e) {
+            $error_message = "Login failed. Please try again.";
+        }
     }
 }
 
 if (isset($_POST['create_task']) && $_SESSION['loggedin'] === true) {
-    $stmt = $db->prepare("INSERT INTO tasks (token, task_name, priority, effort, mandays, due_date, in_progress) VALUES (?, ?, ?, ?, ?, ?, 0)");
-    $stmt->bindValue(1, $_SESSION['token']);
-    $stmt->bindValue(2, $_POST['task_name']);
-    $stmt->bindValue(3, $_POST['priority']);
-    $stmt->bindValue(4, $_POST['effort']);
-    $stmt->bindValue(5, $_POST['mandays']);
-    $stmt->bindValue(6, $_POST['due_date']);
-    $stmt->execute();
+    try {
+        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, task_name, priority, effort, mandays, due_date, in_progress) VALUES (?, ?, ?, ?, ?, ?, 0)");
+        $stmt->execute([
+            $_SESSION['user_id'],
+            $_POST['task_name'],
+            $_POST['priority'],
+            $_POST['effort'],
+            $_POST['mandays'],
+            $_POST['due_date']
+        ]);
+        $success_message = "Task created successfully!";
+    } catch (PDOException $e) {
+        $error_message = "Failed to create task. Please try again.";
+    }
 }
 
 if (isset($_POST['delete_task']) && $_SESSION['loggedin'] === true) {
-    $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND token = ?");
-    $stmt->bindValue(1, $_POST['task_id']);
-    $stmt->bindValue(2, $_SESSION['token']);
-    $stmt->execute();
+    try {
+        $stmt = $pdo->prepare("DELETE FROM tasks WHERE id = ? AND user_id = ?");
+        $stmt->execute([$_POST['task_id'], $_SESSION['user_id']]);
+        $success_message = "Task deleted successfully!";
+    } catch (PDOException $e) {
+        $error_message = "Failed to delete task. Please try again.";
+    }
 }
 
 if (isset($_POST['mark_progress']) && $_SESSION['loggedin'] === true) {
-    $stmt = $db->prepare("UPDATE tasks SET in_progress = 1 WHERE id = ? AND token = ?");
-    $stmt->bindValue(1, $_POST['task_id']);
-    $stmt->bindValue(2, $_SESSION['token']);
-    $stmt->execute();
+    try {
+        $stmt = $pdo->prepare("UPDATE tasks SET in_progress = 1 WHERE id = ? AND user_id = ?");
+        $stmt->execute([$_POST['task_id'], $_SESSION['user_id']]);
+        $success_message = "Task marked as in progress!";
+    } catch (PDOException $e) {
+        $error_message = "Failed to update task. Please try again.";
+    }
 }
 
 if (isset($_POST['edit_task']) && $_SESSION['loggedin'] === true) {
-    $stmt = $db->prepare("UPDATE tasks SET task_name = ? WHERE id = ? AND token = ?");
-    $stmt->bindValue(1, $_POST['new_task_name']);
-    $stmt->bindValue(2, $_POST['task_id']);
-    $stmt->bindValue(3, $_SESSION['token']);
-    $stmt->execute();
+    try {
+        $stmt = $pdo->prepare("UPDATE tasks SET task_name = ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([$_POST['new_task_name'], $_POST['task_id'], $_SESSION['user_id']]);
+        $success_message = "Task updated successfully!";
+    } catch (PDOException $e) {
+        $error_message = "Failed to update task. Please try again.";
+    }
 }
 
 if (isset($_POST['logout'])) {
@@ -130,12 +261,17 @@ function calculateTaskScore($task) {
 
 $tasks = [];
 if ($_SESSION['loggedin'] ?? false) {
-    $stmt = $db->prepare("SELECT * FROM tasks WHERE token = ?");
-    $stmt->bindValue(1, $_SESSION['token']);
-    $results = $stmt->execute();
-    while ($row = $results->fetchArray(SQLITE3_ASSOC)) $tasks[] = $row;
-    usort($tasks, fn($a, $b) => calculateTaskScore($b) <=> calculateTaskScore($a));
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM tasks WHERE user_id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $tasks = $stmt->fetchAll();
+        usort($tasks, fn($a, $b) => calculateTaskScore($b) <=> calculateTaskScore($a));
+    } catch (PDOException $e) {
+        $error_message = "Failed to load tasks. Please try again.";
+    }
 }
+
+} // End of database error check
 ?>
 
 <!DOCTYPE html>
@@ -149,33 +285,111 @@ if ($_SESSION['loggedin'] ?? false) {
         body { background-color: #f8f9fa; }
         .card { margin-bottom: 1rem; }
         .progress-badge { background-color: #ffc107; color: #000; font-size: 0.8em; padding: 0.2em 0.6em; border-radius: 5px; }
+        .auth-container { max-width: 400px; margin: 0 auto; }
+        .nav-tabs .nav-link { cursor: pointer; }
     </style>
 </head>
 <body>
 <div class="container py-4">
     <h1 class="text-center mb-4">Task Management System</h1>
+    
+    <?php if (isset($error_message)): ?>
+        <div class="alert alert-danger" role="alert">
+            <?= htmlspecialchars($error_message) ?>
+        </div>
+    <?php endif; ?>
+    
+    <?php if (isset($success_message)): ?>
+        <div class="alert alert-success" role="alert">
+            <?= htmlspecialchars($success_message) ?>
+        </div>
+    <?php endif; ?>
+    
+    <?php if (isset($db_error)): ?>
+        <div class="alert alert-danger" role="alert">
+            <h4>Database Connection Error</h4>
+            <p>The application is unable to connect to the database. This usually happens when:</p>
+            <ul>
+                <li>The MySQL container is still starting up (please wait a few moments and refresh)</li>
+                <li>The database credentials in the .env file are incorrect</li>
+                <li>The MySQL service is not running</li>
+            </ul>
+            <p><strong>Technical details:</strong> <?= htmlspecialchars($db_error) ?></p>
+            <button class="btn btn-primary" onclick="location.reload()">Retry Connection</button>
+        </div>
+        <?php return; // Stop processing the rest of the page ?>
+    <?php endif; ?>
 <?php if (!($_SESSION['loggedin'] ?? false)): ?>
-<div class="row justify-content-center">
-    <div class="col-12 col-md-8 col-lg-6">
-        <h2 class="mb-4 text-center">Generate Token</h2>
-        <form method="POST" class="mb-4 text-center">
-            <button type="submit" name="generate_token" class="btn btn-primary">Generate Token</button>
-        </form>
-        <h2 class="text-center">Login</h2>
-        <form method="POST">
-            <label for="token" class="form-label">Enter Your Token:</label>
-            <input type="text" class="form-control" name="token" id="token" required>
-            <button type="submit" name="login" class="btn btn-success w-100 mt-2">Login</button>
-        </form>
+<div class="auth-container">
+    <ul class="nav nav-tabs" id="authTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">Register</button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="authTabContent">
+        <div class="tab-pane fade show active" id="login" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Login</h5>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="login_username" class="form-label">Username or Email:</label>
+                            <input type="text" class="form-control" name="username" id="login_username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="login_password" class="form-label">Password:</label>
+                            <input type="password" class="form-control" name="password" id="login_password" required>
+                        </div>
+                        <button type="submit" name="login" class="btn btn-success w-100">Login</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade" id="register" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Register</h5>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="register_username" class="form-label">Username:</label>
+                            <input type="text" class="form-control" name="username" id="register_username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="register_email" class="form-label">Email:</label>
+                            <input type="email" class="form-control" name="email" id="register_email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="register_password" class="form-label">Password:</label>
+                            <input type="password" class="form-control" name="password" id="register_password" required minlength="6">
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm Password:</label>
+                            <input type="password" class="form-control" name="confirm_password" id="confirm_password" required minlength="6">
+                        </div>
+                        <button type="submit" name="register" class="btn btn-primary w-100">Register</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 <?php else: ?>
 <div class="row mb-3">
     <div class="col-12 d-flex justify-content-between align-items-center">
-        <h2 class="mb-0">Create Task</h2>
+        <h2 class="mb-0">Welcome, <?= htmlspecialchars($_SESSION['username']) ?>!</h2>
         <form method="POST" class="ms-2">
             <button name="logout" class="btn btn-danger">Logout</button>
         </form>
+    </div>
+</div>
+<div class="row mb-3">
+    <div class="col-12">
+        <h3>Create Task</h3>
     </div>
 </div>
 <div class="row justify-content-center mb-4">
@@ -249,5 +463,7 @@ if ($_SESSION['loggedin'] ?? false) {
     Vibe coded by Exrienz with <span style="color:red">&#10084;</span>
 </footer>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
