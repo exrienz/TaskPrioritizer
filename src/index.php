@@ -212,10 +212,19 @@ if (isset($_POST['mark_progress']) && $_SESSION['loggedin'] === true) {
     }
 }
 
+// Updated Edit Task Logic to allow full modification
 if (isset($_POST['edit_task']) && $_SESSION['loggedin'] === true) {
     try {
-        $stmt = $pdo->prepare("UPDATE tasks SET task_name = ? WHERE id = ? AND user_id = ?");
-        $stmt->execute([$_POST['new_task_name'], $_POST['task_id'], $_SESSION['user_id']]);
+        $stmt = $pdo->prepare("UPDATE tasks SET task_name = ?, priority = ?, effort = ?, mandays = ?, due_date = ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([
+            $_POST['task_name'],
+            $_POST['priority'],
+            $_POST['effort'],
+            $_POST['mandays'],
+            $_POST['due_date'],
+            $_POST['task_id'],
+            $_SESSION['user_id']
+        ]);
         $success_message = "Task updated successfully!";
     } catch (PDOException $e) {
         $error_message = "Failed to update task. Please try again.";
@@ -317,201 +326,427 @@ if ($_SESSION['loggedin'] ?? false) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Prioritizer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <title>Task Management System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .card { margin-bottom: 1rem; }
-        .progress-badge { background-color: #ffc107; color: #000; font-size: 0.8em; padding: 0.2em 0.6em; border-radius: 5px; }
-        .auth-container { max-width: 400px; margin: 0 auto; }
-        .nav-tabs .nav-link { cursor: pointer; }
+        :root {
+            --primary: #2c3e50;
+            --secondary: #34495e;
+            --accent: #3498db;
+            --bg-color: #f4f6f9;
+        }
+        body { background-color: var(--bg-color); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #333; }
+        .navbar { background-color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .navbar-brand { font-weight: 600; font-size: 1.25rem; }
+        .btn-primary { background-color: var(--accent); border-color: var(--accent); }
+        .btn-primary:hover { background-color: #2980b9; border-color: #2980b9; }
+        .card { border: none; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: transform 0.2s, box-shadow 0.2s; background: #fff; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .task-card .card-header { background: transparent; border-bottom: 1px solid #eee; font-weight: 600; padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; }
+        .task-title { margin: 0; font-size: 1.1rem; color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+        .badge-mode-urgent { background-color: #e74c3c; }
+        .badge-mode-strategic { background-color: #2980b9; }
+        .auth-container { max-width: 450px; margin: 4rem auto; }
+        .stat-card { text-align: center; padding: 1.5rem; }
+        .stat-number { font-size: 2rem; font-weight: 700; color: var(--primary); }
+        .stat-label { font-size: 0.9rem; text-transform: uppercase; color: #7f8c8d; letter-spacing: 1px; }
+        .fab-add { position: fixed; bottom: 2rem; right: 2rem; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 1000; }
+        footer { margin-top: 3rem; color: #7f8c8d; font-size: 0.9rem; border-top: 1px solid #e0e0e0; padding-top: 1.5rem; }
+        .action-btn { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; transition: background 0.2s; }
+        .action-btn:hover { background: #f0f0f0; }
+        .due-date-text { font-size: 0.85rem; }
+        .progress-indicator { height: 4px; border-radius: 2px; background: #e0e0e0; margin-top: 0.5rem; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--accent); }
     </style>
 </head>
 <body>
+
+<?php if (isset($db_error)): ?>
+    <div class="container py-5">
+        <div class="alert alert-danger shadow-sm">
+            <h4 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Database Error</h4>
+            <p><?= htmlspecialchars($db_error) ?></p>
+            <button class="btn btn-outline-danger" onclick="location.reload()">Retry Connection</button>
+        </div>
+    </div>
+<?php else: ?>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+        <a class="navbar-brand" href="#"><i class="fas fa-tasks me-2"></i>Task Prioritizer</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-center">
+                <?php if ($_SESSION['loggedin'] ?? false): ?>
+                    <li class="nav-item me-3 text-light">
+                        <i class="fas fa-user-circle me-1"></i> <?= htmlspecialchars($_SESSION['username']) ?>
+                    </li>
+                    <li class="nav-item">
+                        <form method="POST" class="d-inline">
+                            <button name="logout" class="btn btn-sm btn-outline-light">Logout</button>
+                        </form>
+                    </li>
+                <?php endif; ?>
+            </ul>
+        </div>
+    </div>
+</nav>
+
 <div class="container py-4">
-    <h1 class="text-center mb-4">Task Management System</h1>
-    
+    <!-- Messages -->
     <?php if (isset($error_message)): ?>
-        <div class="alert alert-danger" role="alert">
-            <?= htmlspecialchars($error_message) ?>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i> <?= htmlspecialchars($error_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
     
     <?php if (isset($success_message)): ?>
-        <div class="alert alert-success" role="alert">
-            <?= htmlspecialchars($success_message) ?>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-check-circle me-2"></i> <?= htmlspecialchars($success_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
-    
-    <?php if (isset($db_error)): ?>
-        <div class="alert alert-danger" role="alert">
-            <h4>Database Connection Error</h4>
-            <p>The application is unable to connect to the database. This usually happens when:</p>
-            <ul>
-                <li>The MySQL container is still starting up (please wait a few moments and refresh)</li>
-                <li>The database credentials in the .env file are incorrect</li>
-                <li>The MySQL service is not running</li>
+
+    <?php if (!($_SESSION['loggedin'] ?? false)): ?>
+    <!-- Auth Section -->
+    <div class="auth-container card shadow">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0 px-4">
+            <ul class="nav nav-pills nav-fill" id="authTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button">Login</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button">Register</button>
+                </li>
             </ul>
-            <p><strong>Technical details:</strong> <?= htmlspecialchars($db_error) ?></p>
-            <button class="btn btn-primary" onclick="location.reload()">Retry Connection</button>
         </div>
-        <?php return; // Stop processing the rest of the page ?>
-    <?php endif; ?>
-<?php if (!($_SESSION['loggedin'] ?? false)): ?>
-<div class="auth-container">
-    <ul class="nav nav-tabs" id="authTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">Register</button>
-        </li>
-    </ul>
-    
-    <div class="tab-content" id="authTabContent">
-        <div class="tab-pane fade show active" id="login" role="tabpanel">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Login</h5>
+        <div class="card-body p-4">
+            <div class="tab-content" id="authTabContent">
+                <!-- Login Form -->
+                <div class="tab-pane fade show active" id="login" role="tabpanel">
                     <form method="POST">
                         <div class="mb-3">
-                            <label for="login_username" class="form-label">Username or Email:</label>
-                            <input type="text" class="form-control" name="username" id="login_username" required>
+                            <label class="form-label text-muted small">USERNAME OR EMAIL</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="fas fa-user"></i></span>
+                                <input type="text" class="form-control" name="username" required>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="login_password" class="form-label">Password:</label>
-                            <input type="password" class="form-control" name="password" id="login_password" required>
+                        <div class="mb-4">
+                            <label class="form-label text-muted small">PASSWORD</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="fas fa-lock"></i></span>
+                                <input type="password" class="form-control" name="password" required>
+                            </div>
                         </div>
-                        <button type="submit" name="login" class="btn btn-success w-100">Login</button>
+                        <button type="submit" name="login" class="btn btn-primary w-100 py-2">Sign In</button>
                     </form>
                 </div>
-            </div>
-        </div>
-        
-        <div class="tab-pane fade" id="register" role="tabpanel">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Register</h5>
+                <!-- Register Form -->
+                <div class="tab-pane fade" id="register" role="tabpanel">
                     <form method="POST">
                         <div class="mb-3">
-                            <label for="register_username" class="form-label">Username:</label>
-                            <input type="text" class="form-control" name="username" id="register_username" required>
+                            <label class="form-label text-muted small">USERNAME</label>
+                            <input type="text" class="form-control" name="username" required>
                         </div>
                         <div class="mb-3">
-                            <label for="register_email" class="form-label">Email:</label>
-                            <input type="email" class="form-control" name="email" id="register_email" required>
+                            <label class="form-label text-muted small">EMAIL</label>
+                            <input type="email" class="form-control" name="email" required>
                         </div>
-                        <div class="mb-3">
-                            <label for="register_password" class="form-label">Password:</label>
-                            <input type="password" class="form-control" name="password" id="register_password" required minlength="6">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">PASSWORD</label>
+                                <input type="password" class="form-control" name="password" required minlength="6">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small">CONFIRM</label>
+                                <input type="password" class="form-control" name="confirm_password" required minlength="6">
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="confirm_password" class="form-label">Confirm Password:</label>
-                            <input type="password" class="form-control" name="confirm_password" id="confirm_password" required minlength="6">
-                        </div>
-                        <button type="submit" name="register" class="btn btn-primary w-100">Register</button>
+                        <button type="submit" name="register" class="btn btn-success w-100 py-2">Create Account</button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
-</div>
-<?php else: ?>
-<div class="row mb-3">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h2 class="mb-0">Welcome, <?= htmlspecialchars($_SESSION['username']) ?>!</h2>
-        <form method="POST" class="ms-2">
-            <button name="logout" class="btn btn-danger">Logout</button>
-        </form>
+
+    <?php else: ?>
+    <!-- Dashboard -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card stat-card h-100">
+                <div class="stat-number text-primary"><?= count($tasks) ?></div>
+                <div class="stat-label">Total Tasks</div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3 mb-md-0">
+            <div class="card stat-card h-100">
+                <div class="stat-number text-danger">
+                    <?= count(array_filter($tasks, fn($t) => getTaskMode(ceil((strtotime($t['due_date']) - strtotime(date('Y-m-d'))) / 86400)) === 'URGENT')) ?>
+                </div>
+                <div class="stat-label">Urgent</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card h-100">
+                <div class="stat-number text-success">
+                    <?= count(array_filter($tasks, fn($t) => !empty($t['in_progress']))) ?>
+                </div>
+                <div class="stat-label">In Progress</div>
+            </div>
+        </div>
     </div>
-</div>
-<div class="row mb-3">
-    <div class="col-12">
-        <h3>Create Task</h3>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0 text-secondary">Your Tasks</h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+            <i class="fas fa-plus me-1"></i> New Task
+        </button>
     </div>
-</div>
-<div class="row justify-content-center mb-4">
-    <div class="col-12 col-md-10 col-lg-8 col-xl-6">
-        <form method="POST" class="p-3 border rounded bg-white">
-            <input type="text" name="task_name" class="form-control mb-2" placeholder="Task Name" required>
-            <select name="priority" class="form-select mb-2">
-                <option>Choose Priority</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Optional</option>
-            </select>
-            <select name="effort" class="form-select mb-2">
-                <option>Choose Effort</option><option>Very High</option><option>High</option><option>Medium</option><option>Low</option>
-            </select>
-            <input type="number" name="mandays" class="form-control mb-2" placeholder="Mandays" required>
-            <input type="date" name="due_date" class="form-control mb-2" required>
-            <button type="submit" name="create_task" class="btn btn-primary w-100">Create Task</button>
-        </form>
-    </div>
-</div>
-<h3>Your Tasks</h3>
-<div class="row g-3">
-<?php foreach ($tasks as $task): ?>
-    <div class="col-12 col-md-6 col-lg-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title mb-1"><?= htmlspecialchars($task['task_name']) ?>
-                    <?php if (!empty($task['in_progress'])): ?><span class="progress-badge ms-2">In Progress</span><?php endif; ?>
-                </h5>
-                <p class="card-text mb-1">
-                    <strong>Priority:</strong> <?= htmlspecialchars($task['priority']) ?><br>
-                    <strong>Effort:</strong> <?= htmlspecialchars($task['effort']) ?><br>
-                    <strong>Mandays:</strong> <?= htmlspecialchars($task['mandays']) ?><br>
-                    <strong>Due:</strong> <?= htmlspecialchars($task['due_date']) ?><br>
-                    <?php
-                        $daysLeft = ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
-                        if ($daysLeft < 0) {
-                            $daysLeftText = abs($daysLeft) . ' day(s) overdue';
-                            $daysLeftClass = 'text-danger fw-bold';
-                        } elseif ($daysLeft <= 3) {
-                            $daysLeftText = $daysLeft . ' day(s) left';
-                            $daysLeftClass = 'text-warning fw-bold';
-                        } else {
-                            $daysLeftText = $daysLeft . ' day(s) left';
-                            $daysLeftClass = 'text-success';
-                        }
+
+    <div class="row g-4">
+        <?php if (empty($tasks)): ?>
+            <div class="col-12 text-center py-5">
+                <img src="https://via.placeholder.com/150/e0e0e0/ffffff?text=No+Tasks" class="mb-3 rounded-circle" alt="No Tasks">
+                <h5 class="text-muted">You're all caught up!</h5>
+                <p class="text-muted small">Click "New Task" to get started.</p>
+            </div>
+        <?php endif; ?>
+
+        <?php foreach ($tasks as $task): ?>
+            <?php
+                $daysLeft = ceil((strtotime($task['due_date']) - strtotime(date('Y-m-d'))) / 86400);
+                $taskMode = getTaskMode($daysLeft);
+                $taskScore = calculateTaskScore($task);
+
+                if ($daysLeft < 0) {
+                    $daysText = abs($daysLeft) . 'd overdue';
+                    $daysColor = 'text-danger';
+                } elseif ($daysLeft == 0) {
+                    $daysText = 'Today';
+                    $daysColor = 'text-danger';
+                } else {
+                    $daysText = $daysLeft . 'd left';
+                    $daysColor = $daysLeft <= 3 ? 'text-warning' : 'text-success';
+                }
+            ?>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card task-card h-100">
+                    <div class="card-header">
+                        <h5 class="task-title" title="<?= htmlspecialchars($task['task_name']) ?>">
+                            <?= htmlspecialchars($task['task_name']) ?>
+                        </h5>
+                        <div class="dropdown">
+                            <button class="btn btn-link text-muted p-0" data-bs-toggle="dropdown">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item edit-task-btn" href="#"
+                                       data-id="<?= $task['id'] ?>"
+                                       data-name="<?= htmlspecialchars($task['task_name']) ?>"
+                                       data-priority="<?= $task['priority'] ?>"
+                                       data-effort="<?= $task['effort'] ?>"
+                                       data-mandays="<?= $task['mandays'] ?>"
+                                       data-due="<?= $task['due_date'] ?>">
+                                    <i class="fas fa-edit me-2 text-primary"></i> Edit</a>
+                                </li>
+                                <li>
+                                    <form method="POST" class="d-inline w-100">
+                                        <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+                                        <button type="submit" name="delete_task" class="dropdown-item text-danger">
+                                            <i class="fas fa-trash-alt me-2"></i> Delete
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="badge rounded-pill <?= $taskMode === 'URGENT' ? 'badge-mode-urgent' : 'badge-mode-strategic' ?>">
+                                <?= $taskMode ?>
+                            </span>
+                            <span class="fw-bold text-muted small">Score: <?= $taskScore ?></span>
+                        </div>
                         
-                        $taskMode = getTaskMode($daysLeft);
-                        $taskScore = calculateTaskScore($task);
-                        $modeClass = ($taskMode == 'URGENT') ? 'badge bg-danger' : 'badge bg-primary';
-                    ?>
-                    <strong>Time Left:</strong> <span class="<?= $daysLeftClass ?>"><?= $daysLeftText ?></span><br>
-                    <strong>Mode:</strong> <span class="<?= $modeClass ?>"><?= $taskMode ?></span><br>
-                    <strong>Score:</strong> <span class="fw-bold text-primary"><?= $taskScore ?></span>
-                </p>
-                <form method="POST" class="d-inline">
-                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                    <button type="submit" name="delete_task" class="btn btn-sm btn-outline-danger">Delete</button>
-                </form>
-                <?php if (empty($task['in_progress'])): ?>
-                <form method="POST" class="d-inline">
-                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                    <input type="hidden" name="mark_progress" value="1">
-                    <input type="checkbox" onchange="this.form.submit()">
-                    Mark as In Progress
-                </form>
-                <?php endif; ?>
-                <form method="POST" class="mt-2">
-                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                    <div class="input-group">
-                        <input type="text" name="new_task_name" class="form-control" value="<?= htmlspecialchars($task['task_name']) ?>" required>
-                        <button type="submit" name="edit_task" class="btn btn-outline-primary">Update</button>
+                        <div class="row g-2 small text-muted mb-3">
+                            <div class="col-6">
+                                <i class="fas fa-flag me-1 text-warning"></i> <?= $task['priority'] ?>
+                            </div>
+                            <div class="col-6">
+                                <i class="fas fa-dumbbell me-1 text-info"></i> <?= $task['effort'] ?>
+                            </div>
+                            <div class="col-6">
+                                <i class="fas fa-user-clock me-1 text-secondary"></i> <?= $task['mandays'] ?> days
+                            </div>
+                            <div class="col-6 <?= $daysColor ?> fw-bold">
+                                <i class="fas fa-calendar-alt me-1"></i> <?= $daysText ?>
+                            </div>
+                        </div>
+
+                        <?php if ($task['in_progress']): ?>
+                            <div class="alert alert-soft-success py-1 px-2 mb-0 small text-center bg-light text-success border">
+                                <i class="fas fa-spinner fa-spin me-1"></i> In Progress
+                            </div>
+                        <?php else: ?>
+                            <form method="POST">
+                                <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+                                <input type="hidden" name="mark_progress" value="1">
+                                <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Start Task</button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div class="modal fade" id="createTaskModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Task Name</label>
+                            <input type="text" name="task_name" class="form-control" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Priority</label>
+                                <select name="priority" class="form-select" required>
+                                    <option value="Critical">Critical</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium" selected>Medium</option>
+                                    <option value="Low">Low</option>
+                                    <option value="Optional">Optional</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Effort</label>
+                                <select name="effort" class="form-select" required>
+                                    <option value="Very High">Very High</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium" selected>Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Mandays</label>
+                                <input type="number" name="mandays" class="form-control" value="1" min="1" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Due Date</label>
+                                <input type="date" name="due_date" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="create_task" class="btn btn-primary">Create Task</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-<?php endforeach; ?>
-</div>
-<?php endif; ?>
-<footer class="text-center mt-4">
-    <a href="/">Back to Home</a><br>
-    Vibe coded by Exrienz with <span style="color:red">&#10084;</span>
-</footer>
+
+    <!-- Edit Task Modal -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <input type="hidden" name="task_id" id="edit_task_id">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Task Name</label>
+                            <input type="text" name="task_name" id="edit_task_name" class="form-control" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Priority</label>
+                                <select name="priority" id="edit_priority" class="form-select" required>
+                                    <option value="Critical">Critical</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                    <option value="Optional">Optional</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Effort</label>
+                                <select name="effort" id="edit_effort" class="form-select" required>
+                                    <option value="Very High">Very High</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Mandays</label>
+                                <input type="number" name="mandays" id="edit_mandays" class="form-control" min="1" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Due Date</label>
+                                <input type="date" name="due_date" id="edit_due_date" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="edit_task" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <?php endif; ?>
+
+    <footer class="text-center">
+        <p>Vibe coded by Exrienz with <span class="text-danger">&#10084;</span></p>
+    </footer>
 </div>
 
+<?php endif; // End of db_error check ?>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const editButtons = document.querySelectorAll('.edit-task-btn');
+        const editModal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+        const editForm = document.getElementById('editTaskModal').querySelector('form');
+
+        editButtons.forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('edit_task_id').value = this.dataset.id;
+                document.getElementById('edit_task_name').value = this.dataset.name;
+                document.getElementById('edit_priority').value = this.dataset.priority;
+                document.getElementById('edit_effort').value = this.dataset.effort;
+                document.getElementById('edit_mandays').value = this.dataset.mandays;
+                document.getElementById('edit_due_date').value = this.dataset.due;
+
+                editModal.show();
+            });
+        });
+    });
+</script>
 </body>
 </html>
