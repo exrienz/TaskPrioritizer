@@ -234,7 +234,7 @@ if ($_SESSION['loggedin'] ?? false) {
                     <strong>Time Left:</strong> <?= $daysLeftText ?><br>
                     <strong>Score:</strong> <?= calculateTaskScore($task) ?>
                 </p>
-                <form method="POST" class="d-inline">
+                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this task?');">
                     <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
                     <button type="submit" name="delete_task" class="btn btn-sm btn-outline-danger">Delete</button>
                 </form>
