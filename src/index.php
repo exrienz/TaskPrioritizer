@@ -257,7 +257,7 @@ function calculateUrgentScore($task, $daysLeft) {
         $urgency = 120 / (1 + $daysLeft); // Strong urgency curve
     }
     
-    $score = ($priority * 30) + $urgency - $effortPenalty;
+    $score = ($priority * 50) + $urgency - $effortPenalty;
     return max(0, round($score, 2));
 }
 
