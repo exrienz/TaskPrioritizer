@@ -7,10 +7,22 @@ WORKDIR /var/www/html
 # Install necessary PHP extensions and dependencies
 RUN apt-get update && apt-get install -y \
     default-mysql-client \
+    git \
+    unzip \
     && docker-php-ext-install pdo pdo_mysql
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Enable Apache mod_rewrite for clean URLs
 RUN a2enmod rewrite
+
+# Copy composer files
+COPY composer.json composer.lock* /var/www/
+
+# Install dependencies
+WORKDIR /var/www
+RUN composer install --no-dev --optimize-autoloader
 
 # Copy application files to the container
 COPY src/ /var/www/html
