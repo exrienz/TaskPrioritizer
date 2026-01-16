@@ -37,7 +37,12 @@ if ($google_oauth_enabled) {
     // Enforce HTTPS in production (except for localhost development)
     $is_localhost = (strpos($_SERVER['HTTP_HOST'] ?? '', 'localhost') !== false ||
                      strpos($_SERVER['HTTP_HOST'] ?? '', '127.0.0.1') !== false);
-    if (!$is_localhost && empty($_SERVER['HTTPS'])) {
+    $is_https_request = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+        || (!empty($_SERVER['REQUEST_SCHEME']) && $_SERVER['REQUEST_SCHEME'] === 'https')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+        || (!empty($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443);
+    if (!$is_localhost && !$is_https_request) {
         $oauth_config_error = "Google OAuth requires HTTPS in production. Please ensure your application is served over HTTPS.";
         error_log("OAuth Security Error: " . $oauth_config_error);
     }
