@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Kanban Board UI**: Drag-and-drop task board with four columns (Backlog, To Do, In Progress, Done)
+  - Tasks sorted by urgency mode (URGENT/STRATEGIC) and priority score within each column
+  - Real-time due-date countdown badges with color-coded urgency indicators
+  - Visual task cards with priority, effort, mandays, and scoring information
+  - Edit and delete actions directly on Kanban cards
+
+- **Task Description & Assignee**: Extended task model with optional description and assignee fields
+  - Added `description` (TEXT) and `assignee` (VARCHAR) columns to tasks table
+  - Both fields are editable via the Kanban card edit modal
+
+- **Kanban Backend APIs**: New PHP endpoints for Kanban operations
+  - `move_task` - Move task between columns with automatic sort-order management
+  - `update_task_details` - Batch update task fields (title, description, assignee, priority, due date, status)
+  - `delete_task_ajax` - Asynchronous task deletion with confirmation prompt
+  - All operations use row-level locking for data consistency
+
+- **Drag-and-Drop JavaScript**: Client-side Kanban interactions
+  - Native HTML5 drag-and-drop with visual drop-zone indicators
+  - Position-aware insertion (tasks reorder within columns)
+  - Automatic column count badges update
+  - Optimistic UI updates with server reconciliation
+
+- **Sort Order Management**: Automatic sequencing of tasks within each status column
+  - Tasks maintain a stable `sort_order` integer per user/status
+  - Moving a task shifts sibling positions to maintain gaps
+  - New tasks auto-assigned to next available order in target column
+
+- **Ranked Task Cards Section**: Expandable/collapsible task listing with expand-for-details pattern
+  - Collapsed by default; state persisted in sessionStorage
+  - Task details (description, priority, effort, mandays) shown on expand
+
+- **Edit Task Modal**: Bootstrap modal form for inline task editing
+  - Updates title, description, assignee, priority, due date, and status
+  - Validates inputs server-side before applying changes
+
+### Changed
+
+- **Port Changed**: Application port updated from `8080` to `8001` in docker-compose.yml
+- **Kanban Status Migration**: Existing `in_progress` tasks automatically migrated to `in_progress` status; all others to `todo`
+- **Sort Order Migration**: Existing tasks auto-assigned sequential `sort_order` values sorted by creation time
+- **Description Column Migration**: Added `description` and `assignee` columns with backward-compatible migration
+
+### Fixed
+
+- **Drag-and-Drop Consistency**: Sort order correctly maintained when moving tasks within and across columns
+
+---
+
 ## [1.1.0] - 2026-01-15
 
 ### Added
