@@ -14,8 +14,12 @@ RUN apt-get update && apt-get install -y \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Enable Apache mod_rewrite for clean URLs
-RUN a2enmod rewrite
+# Enable Apache modules: rewrite for clean URLs, headers for PWA cache control
+RUN a2enmod rewrite headers
+
+# Suppress the benign AH00558 FQDN notice for cleaner container logs
+RUN echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf \
+    && a2enconf servername
 
 # Copy composer files
 COPY composer.json composer.lock* /var/www/

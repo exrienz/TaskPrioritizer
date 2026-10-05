@@ -20,6 +20,7 @@ Demo: https://todo.code-x.my/
   - Delete tasks easily
   - User isolation: users can only see their own tasks
 - **MySQL Database**: Robust database with user management and task storage
+- **Installable App (PWA)**: Add to Android home screen for a fullscreen, standalone experience with its own icon; in-app "Full screen" toggle included
 - **Docker Support**: Run the application in a Docker container for easy deployment
 - **Security**: Prepared statements, bcrypt password hashing, secure session management, CSRF protection
 
@@ -188,12 +189,22 @@ Google OAuth login is optional and can be enabled via configuration. To set up G
    - Tasks display their mode (URGENT or STRATEGIC) and current score
    - Overdue and approaching deadline tasks are highlighted
 
+5. **Use Full Screen & Install as an App**:
+   - Click **Full screen** in the app header for an immersive in-tab view (click again or press Esc to exit)
+   - **Android (Chrome)**: open the app, wait for the **Install app** button in the header (or tap the browser menu → "Add to Home screen" / "Install app"). The icon launches the app standalone, without browser chrome
+   - **iPhone (Safari)**: Share → "Add to Home Screen"
+   - Install prompts require HTTPS in production (`http://localhost` works for local testing)
+
 #### Project Structure
 
 ```
 TaskPrioritizer/
 ├── src/
-│   └── index.php          # Main application file
+│   ├── index.php          # Main application file
+│   ├── manifest.webmanifest # PWA manifest (installable app metadata)
+│   ├── sw.js              # Install-only service worker (no caching)
+│   └── pwa-icons/         # App icons (192/512, maskable, Apple touch, favicon)
+│                          # NOTE: not named `icons/` — Debian Apache reserves `/icons/`
 ├── docker-compose.yml     # Docker orchestration
 ├── dockerfile             # Docker configuration
 ├── composer.json          # PHP dependencies

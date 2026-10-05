@@ -1074,6 +1074,16 @@ if ($_SESSION['loggedin'] ?? false) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="TaskPrioritizer: prioritize tasks by priority, effort, mandays and due dates.">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Tasks">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="32x32" href="pwa-icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="pwa-icons/icon-192.png">
+    <link rel="apple-touch-icon" href="pwa-icons/apple-touch-icon.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <title>Task Management System</title>
     <style>
@@ -2082,6 +2092,10 @@ if ($_SESSION['loggedin'] ?? false) {
                 <p>Plan high-impact work, surface blockers, and keep execution moving.</p>
             </div>
         </div>
+        <div class="top-actions">
+            <button id="pwaInstallBtn" class="btn btn-primary btn-sm" type="button" hidden>Install app</button>
+            <button id="fullscreenBtn" class="btn btn-outline-secondary btn-sm" type="button">Full screen</button>
+        </div>
     </div>
     <?php endif; ?>
     
@@ -2213,6 +2227,8 @@ if ($_SESSION['loggedin'] ?? false) {
         </div>
     </div>
     <div class="top-actions">
+        <button id="pwaInstallBtn" class="btn btn-primary btn-sm" type="button" hidden>Install app</button>
+        <button id="fullscreenBtn" class="btn btn-outline-secondary btn-sm" type="button">Full screen</button>
         <div class="user-pill">
             <span class="user-avatar"><?= strtoupper(substr($_SESSION['username'] ?? 'U', 0, 1)) ?></span>
             <span><?= htmlspecialchars($_SESSION['username']) ?></span>
@@ -3565,6 +3581,95 @@ if ($_SESSION['loggedin'] ?? false) {
             }
         });
     });
+})();
+</script>
+<script>
+(() => {
+    // --- Service worker registration (enables Android installability) ---
+    // SW requires HTTPS or localhost; skip silently otherwise.
+    if ('serviceWorker' in navigator) {
+        const isLocalhost = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+        if (location.protocol === 'https:' || isLocalhost) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {
+                    // Registration failure must not break the app.
+                });
+            });
+        }
+    }
+
+    // --- Android install prompt ("Install app" button) ---
+    // Chrome fires beforeinstallprompt when PWA criteria are met
+    // (manifest + icons + SW + HTTPS). Other browsers keep the button
+    // hidden; users there install via the browser menu instead.
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('pwaInstallBtn');
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredPrompt = event;
+        if (installBtn) {
+            installBtn.hidden = false;
+        }
+    });
+    if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) {
+                return;
+            }
+            deferredPrompt.prompt();
+            try {
+                await deferredPrompt.userChoice;
+            } catch (err) {
+                // Ignore; install flow is best-effort.
+            }
+            deferredPrompt = null;
+            installBtn.hidden = true;
+        });
+    }
+    window.addEventListener('appinstalled', () => {
+        deferredPrompt = null;
+        if (installBtn) {
+            installBtn.hidden = true;
+        }
+    });
+
+    // --- Fullscreen toggle (in-tab immersive view) ---
+    // Separate from PWA standalone launch: this fills the current tab.
+    const fsBtn = document.getElementById('fullscreenBtn');
+    if (fsBtn) {
+        const fsEnabled = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+        if (!fsEnabled) {
+            // e.g. iPhone Safari: no element-fullscreen support.
+            fsBtn.hidden = true;
+        } else {
+            const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+            const syncLabel = () => {
+                fsBtn.textContent = isFullscreen() ? 'Exit full screen' : 'Full screen';
+            };
+            fsBtn.addEventListener('click', async () => {
+                try {
+                    if (isFullscreen()) {
+                        if (document.exitFullscreen) {
+                            await document.exitFullscreen();
+                        } else if (document.webkitExitFullscreen) {
+                            document.webkitExitFullscreen();
+                        }
+                    } else if (document.documentElement.requestFullscreen) {
+                        await document.documentElement.requestFullscreen();
+                    } else if (document.documentElement.webkitRequestFullscreen) {
+                        document.documentElement.webkitRequestFullscreen();
+                    }
+                } catch (err) {
+                    // Fullscreen request denied (e.g. not from a user gesture
+                    // context or iframe permissions); leave the page as-is.
+                }
+                syncLabel();
+            });
+            document.addEventListener('fullscreenchange', syncLabel);
+            document.addEventListener('webkitfullscreenchange', syncLabel);
+            syncLabel();
+        }
+    }
 })();
 </script>
 </body>

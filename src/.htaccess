@@ -1,3 +1,20 @@
 <FilesMatch "\.(db|sqlite|config)$">
     Require all denied
 </FilesMatch>
+
+# PWA: serve the web app manifest with the correct content type so
+# Android Chrome recognises the app as installable.
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
+# PWA caching: the service worker must always revalidate so updates
+# ship immediately; icons and manifest can be cached longer.
+<IfModule mod_headers.c>
+    <Files "sw.js">
+        Header set Cache-Control "no-cache"
+    </Files>
+    <FilesMatch "^(manifest\.webmanifest|icon-.*\.png|maskable-.*\.png|apple-touch-icon\.png|favicon-.*\.png)$">
+        Header set Cache-Control "public, max-age=604800, immutable"
+    </FilesMatch>
+</IfModule>

@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Container Log Noise**: Set `ServerName localhost` in the app image to suppress the benign Apache AH00558 FQDN notice on startup
+
 ### Added
+
+- **PWA Install + Fullscreen Support**:
+  - **Web App Manifest**: `src/manifest.webmanifest` with `display: standalone`, light-theme colors matching the app (`theme_color #2563eb`), and icon set (192/512 `any` + 512 `maskable`) so Android Chrome offers "Install app" and the launched app hides browser chrome
+  - **Auto-Generated Brand Icons**: `src/pwa-icons/` (`icon-192.png`, `icon-512.png`, `maskable-512.png`, `apple-touch-icon.png`, `favicon-32.png`, plus `icon.svg` source). Note: the folder is intentionally NOT named `icons/` because Debian Apache aliases `/icons/` to its own autoindex assets, which would 404 our files
+  - **Install-Only Service Worker**: `src/sw.js` with network passthrough and no caching (task data lives in MySQL; caching would risk stale tasks). Exists to satisfy Chrome installability; `sw.js` is served `Cache-Control: no-cache` so updates ship immediately
+  - **Header Actions**: "Install app" button (rendered in the app header, revealed only when the browser fires `beforeinstallprompt`; hidden elsewhere incl. iOS) and "Full screen" toggle using the Fullscreen API with WebKit fallback (hidden where unsupported, e.g. iPhone Safari)
+  - **Server Config**: `.htaccess` serves `.webmanifest` as `application/manifest+json` with long-lived immutable caching for icons; `dockerfile` now also enables `mod_headers`
+  - Requires HTTPS in production for installability (localhost exempt); iOS installs via Share → Add to Home Screen
 
 - **Mobile-Optimized UI/UX Revamp**:
   - **Swappable Kanban Tabs**: Segmented tab control (`All`, `Backlog`, `To Do`, `In Progress`, `Done`) on mobile viewports (`< 768px`) to browse columns without vertical clutter
