@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mobile-Optimized UI/UX Revamp**:
+  - **Swappable Kanban Tabs**: Segmented tab control (`All`, `Backlog`, `To Do`, `In Progress`, `Done`) on mobile viewports (`< 768px`) to browse columns without vertical clutter
+  - **Quick Status Mover**: 1-tap dropdown action on every Kanban card to move tasks across columns instantly on mobile touchscreens
+  - **Smooth Accordion Task Composer**: Collapsible drawer on viewports `< 1100px` with animated toggle to preserve screen space
+  - **Mobile Bottom-Sheet Modal**: Native bottom-sheet style dialog on mobile (`< 576px`) with drag handle and sticky footer actions
+  - **Mobile Safe Areas & Viewport Hardening**: `viewport-fit=cover`, iOS notch / home indicator safe area support, and 16px form inputs to prevent unwanted iOS Safari auto-zoom
+  - **Modern Sleek Light Theme**: Refined typography, 10–14px curves, ambient layered shadows, and high-contrast accessible color palette
+  - **Responsive Gantt Chart**: Dynamic sticky column scaling (`120px` on mobile, `200px` on desktop) with smooth `-webkit-overflow-scrolling: touch`
+
+### Changed
+
+- **UAT Deployment Port**: Configured application port to `5001` (`${PORT:-5001}`) for UAT2 deployment (`uat2.code-x.my`)
+- **Unified App Bar**: Streamlined top header combining brand mark, user profile pill, task counters, and responsive logout
+
+### Fixed
+
+- **Mobile Container Width Blowout**: Fixed horizontal scrolling on mobile viewports by adding strict `min-width: 0; max-width: 100%; overflow: hidden;` constraints to `main`, `.workspace-grid`, and `.timeline-section`.
+- **Form Gutter Overflow**: Replaced Bootstrap negative-margin rows with custom flexbox containers in Task Composer advanced options and modals.
+- **Select Option Expansion**: Enforced `text-overflow: ellipsis` and `max-width: 100%` on dropdown selects to prevent long task names from blowing out parent cards.
+- **Accordion Smooth Transition**: Implemented smooth cubic-bezier max-height animation for Task Composer toggle on screens `< 1100px`.
+- **Mobile Column Focus**: Auto-synchronized Kanban column visibility on mobile viewports to display only the active tab's column by default.
+
+---
+
+### Added
+
 - **Kanban Board UI**: Drag-and-drop task board with four columns (Backlog, To Do, In Progress, Done)
   - Tasks sorted by urgency mode (URGENT/STRATEGIC) and priority score within each column
   - Real-time due-date countdown badges with color-coded urgency indicators
